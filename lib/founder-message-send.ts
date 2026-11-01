@@ -49,6 +49,7 @@ export async function messageFounder(deps: MessageDeps): Promise<MessageResult> 
   const { venture, card } = deps;
   const where = `${card.repo}#${card.number} ${card.state}`;
   const say = (line: string) => deps.log(`[founder-messages] ${venture.id} ${where}: ${line}`);
+  let outcome: MessageOutcome | null = null;
   try {
     if (!isFounderMessage(venture.id, card)) return 'not-a-message';
     const founder = founderAddress(venture);
@@ -66,7 +67,6 @@ export async function messageFounder(deps: MessageDeps): Promise<MessageResult> 
 
     const keys = deps.keys;
     const pushed = keys ? await deps.run((q) => pushCardMessage(q, venture, card, founder, keys, { post: deps.post })) : null;
-    let outcome: MessageOutcome;
     if (pushed && pushed.sent > 0) {
       outcome = 'notification';
     } else {
@@ -88,11 +88,17 @@ export async function messageFounder(deps: MessageDeps): Promise<MessageResult> 
         }
       }
     }
-    await deps.run((q) => recordCardMessage(q, key, outcome));
-    if (outcome !== 'none') say(`the founder was sent ${outcome === 'email' ? 'an email' : 'a notification'}.`);
-    return outcome;
+    const done = outcome;
+    await deps.run((q) => recordCardMessage(q, key, done));
+    if (done !== 'none') say(`the founder was sent ${sentWords(done)}.`);
+    return done;
   } catch (e) {
-    say(`no message was sent: ${(e as Error)?.message ?? 'unknown fault'}`);
-    return 'none';
+    const fault = (e as Error)?.message ?? 'unknown fault';
+    if (outcome === null) say(`no message was sent: ${fault}`);
+    else if (outcome === 'none') say(`no message was sent, and that could not be written down: ${fault}`);
+    else say(`the founder was sent ${sentWords(outcome)}, but that could not be written down, so do not send it again: ${fault}`);
+    return outcome ?? 'none';
   }
 }
+
+const sentWords = (outcome: 'notification' | 'email') => (outcome === 'email' ? 'an email' : 'a notification');

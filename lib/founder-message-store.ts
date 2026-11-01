@@ -1,4 +1,5 @@
 import type { Querier } from './push-store';
+import type { MessageState } from './founder-message';
 
 /**
  * Which card messages a founder has been sent, and whether they have stopped them (FB-279).
@@ -12,11 +13,15 @@ import type { Querier } from './push-store';
 export interface MessageKey {
   repo: string;
   number: number;
-  state: 'finished' | 'stuck' | 'sent-back';
+  state: MessageState;
   headSha: string;
 }
 
-export type MessageOutcome = 'notification' | 'email' | 'none';
+/** Every value a claim's `outcome` can hold; `db/011_founder_messages.sql` checks the same list. */
+export const CLAIM_OUTCOMES = ['pending', 'off', 'notification', 'email', 'none'] as const;
+export type ClaimOutcome = (typeof CLAIM_OUTCOMES)[number];
+/** What happened to a claimed message, once it is known. */
+export type MessageOutcome = Exclude<ClaimOutcome, 'pending' | 'off'>;
 
 export const MESSAGE_SQL = {
   isOff: 'select 1 from pushstore.messages_off where email = $1',
@@ -41,7 +46,8 @@ export const MESSAGE_SQL = {
  */
 export async function claimCardMessage(q: Querier, key: MessageKey, email: string): Promise<'claimed' | 'off' | 'already'> {
   const off = await messagesOff(q, email);
-  const { rows } = await q.query(MESSAGE_SQL.claim, [key.repo, key.number, key.state, key.headSha, email.toLowerCase(), off ? 'off' : 'pending']);
+  const outcome: ClaimOutcome = off ? 'off' : 'pending';
+  const { rows } = await q.query(MESSAGE_SQL.claim, [key.repo, key.number, key.state, key.headSha, email.toLowerCase(), outcome]);
   if (rows.length === 0) return 'already';
   return off ? 'off' : 'claimed';
 }

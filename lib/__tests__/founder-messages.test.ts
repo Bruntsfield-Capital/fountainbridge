@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { generateKeyPairSync, createECDH, randomBytes } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import { rememberPhone, phones, type Querier } from '../push-store';
-import { setMessagesOff } from '../founder-message-store';
+import { CLAIM_OUTCOMES, MESSAGE_SQL, setMessagesOff } from '../founder-message-store';
+import { MESSAGE_STATES } from '../founder-message';
 import { messageFounder, type MessageDeps } from '../founder-message-send';
 import { b64url, type PushTarget } from '../webpush';
 import type { Mail, MailSettings } from '../mail';
@@ -261,10 +262,39 @@ describe('when it cannot send', () => {
     expect(h.logged).toEqual(['[founder-messages] arca arca#21 finished: no message was sent: the database went away']);
   });
 
+  it('a fault after the email went says the founder was sent it', async () => {
+    const h = harness();
+    let calls = 0;
+    const run: MessageDeps['run'] = (fn) => (++calls === 2 ? Promise.reject(new Error('the database went away')) : as(ARCA.id, fn));
+    expect(await messageFounder(h.deps({ keys: null, run }))).toBe('email');
+    expect(h.mailed).toHaveLength(1);
+    expect(h.logged).toEqual(['[founder-messages] arca arca#21 finished: the founder was sent an email, but that could not be written down, so do not send it again: the database went away']);
+  });
+
   it('logs name no address', async () => {
     const h = harness();
     await messageFounder(h.deps({ mail: null }));
     await messageFounder(h.deps({ card: card({ headSha: '1'.repeat(40) }), send: async () => 'failed' }));
     expect(h.logged.join('\n')).not.toMatch(/@/);
+  });
+});
+
+describe('the database and the code list the same states and outcomes', () => {
+  // A state or outcome the database refuses would make every claim fail, and the founder hear nothing.
+  const claim = (n: number, state: string, outcome: string) =>
+    as('arca', (q) => q.query(MESSAGE_SQL.claim, ['wealthcx01/arca', n, state, 'a'.repeat(40), ARCA_FOUNDER, outcome]));
+
+  it('accepts every state and outcome the code can write', async () => {
+    let n = 0;
+    for (const state of MESSAGE_STATES) {
+      for (const outcome of CLAIM_OUTCOMES) {
+        expect((await claim(++n, state, outcome)).rows).toHaveLength(1);
+      }
+    }
+  });
+
+  it('refuses a state or an outcome the code does not know', async () => {
+    await expect(claim(1, 'done', 'pending')).rejects.toThrow(/check constraint/);
+    await expect(claim(2, 'finished', 'sent')).rejects.toThrow(/check constraint/);
   });
 });
