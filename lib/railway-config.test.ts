@@ -22,8 +22,9 @@ const LEGACY_FILE = `${root}railway.json`;
 const EXPECTED = {
   builder: 'NIXPACKS',
   startCommand: 'npm run start',
-  // FB-282 (its own pull request): load any new schema files before each deploy.
-  preDeployCommand: ['node scripts/apply-schema.mjs'],
+  // FB-282 (its own pull request): load any new schema files before each deploy. FB-287 (its own
+  // pull request): then stop if the database lacks one. Both are in package.json's before-deploy.
+  preDeployCommand: ['npm run before-deploy'],
   healthcheckPath: '/api/health',
   healthcheckTimeout: 100,
   restartPolicyType: 'ON_FAILURE',
