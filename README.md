@@ -113,3 +113,4 @@ Tickets live in `docs/tickets/`; one ticket = one branch = one PR; only John's y
 - `docs/design-gaps-open.md` — the open design questions, written so a section can go straight to Claude Design. Five today: what the desk becomes once work happens in Claude Code, what an empty office looks like, whether a figure means an agent, two tokens that do not exist, and the ledger on a phone.
 
 - `docs/what-john-needs-to-do.md` — the four things waiting on John, each with exact steps, what it unblocks, and how he will know it worked. Read this before asking him for anything.
+Budget guard test.
