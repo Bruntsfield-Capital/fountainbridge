@@ -1,4 +1,5 @@
 import type { StoredCard } from './card-store';
+import { founderAddress } from './authz';
 import type { VentureSummary } from './ventures';
 import type { Querier } from './push-store';
 import type { Poster, VapidKeys } from './webpush';
@@ -50,7 +51,7 @@ export async function messageFounder(deps: MessageDeps): Promise<MessageResult> 
   const say = (line: string) => deps.log(`[founder-messages] ${venture.id} ${where}: ${line}`);
   try {
     if (!isFounderMessage(venture.id, card)) return 'not-a-message';
-    const founder = venture.founderEmail?.trim().toLowerCase();
+    const founder = founderAddress(venture);
     if (!founder) {
       say('this venture names no founder, so nobody was messaged.');
       return 'no-founder';

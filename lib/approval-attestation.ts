@@ -24,6 +24,7 @@
 
 import 'server-only';
 import { createHmac } from 'node:crypto';
+import { founderAddress } from './authz';
 import type { VentureSummary } from './ventures';
 
 export function attestationFor(
@@ -61,7 +62,7 @@ function normalise(email: string): string {
 
 function isFounderOf(email: string, venture: VentureSummary): boolean {
   const e = normalise(email);
-  return Boolean(e && venture.founderEmail && venture.founderEmail.trim().toLowerCase() === e);
+  return Boolean(e) && founderAddress(venture) === e;
 }
 
 function isAdmin(email: string, adminEmails: string[]): boolean {

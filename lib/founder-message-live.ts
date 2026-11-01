@@ -2,6 +2,7 @@ import 'server-only';
 import { studioDatabase, withVenture } from './db';
 import type { StoredCard } from './card-store';
 import type { Querier } from './push-store';
+import { founderAddress } from './authz';
 import type { VentureSummary } from './ventures';
 import { vapidFromEnv } from './webpush';
 import { mailFromEnv, whyNoMail } from './mail';
@@ -41,7 +42,7 @@ export type MessagesLine = { off: boolean; email: string; byEmail: boolean } | {
  * and on a studio that has nowhere to keep the choice or no way to send a message.
  */
 export async function founderMessagesLine(venture: Pick<VentureSummary, 'id' | 'founderEmail'>, viewerEmail: string, env: Env = process.env): Promise<MessagesLine | null> {
-  const founder = venture.founderEmail?.trim().toLowerCase();
+  const founder = founderAddress(venture);
   if (!founder || founder !== viewerEmail.trim().toLowerCase()) return null;
   if (!studioDatabase(env)) return null;
   const byEmail = mailFromEnv(env) !== null;

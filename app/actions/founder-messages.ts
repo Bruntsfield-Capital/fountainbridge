@@ -4,6 +4,7 @@ import { requireVenture } from '@/lib/venture-access';
 import { withVenture, NoDatabaseError } from '@/lib/db';
 import { setMessagesOff } from '@/lib/founder-message-store';
 import { MESSAGE_WORDS } from '@/lib/founder-message';
+import { founderAddress } from '@/lib/authz';
 
 /**
  * A founder starting or stopping the messages about their team's work (FB-279).
@@ -18,7 +19,7 @@ export async function setFounderMessages(ventureId: string, on: unknown): Promis
   const access = await requireVenture(ventureId);
   if (!access.ok) return { ok: false, message: access.error };
   if (typeof on !== 'boolean') return { ok: false, message: MESSAGE_WORDS.failed };
-  const founder = access.venture.founderEmail?.trim().toLowerCase();
+  const founder = founderAddress(access.venture);
   if (!founder || founder !== access.email.trim().toLowerCase()) return { ok: false, message: MESSAGE_WORDS.notFounder };
   try {
     await withVenture(ventureId, (q) => setMessagesOff(q, founder, !on));
