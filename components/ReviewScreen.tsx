@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { Decision, type DecisionResult, type ReviewNotes } from './Decision';
 import { isSettled, noteFrom, pictureWords, type CardState, type Pin, type PictureName, type ReviewView } from '@/lib/review';
+import { BUTTONS_OFF } from '@/lib/presses';
 
 /**
  * The Review screen (FB-274), drawn as the "Studios, aligned" canvas draws it, in the Bruntsfield
@@ -59,8 +60,9 @@ const DECIDED: Record<Extract<CardState, { kind: 'decided' }>['action'], string>
 
 /** The state, as the flag at the top of the screen says it. */
 function stateFlag(state: CardState, isJohn: boolean): { tone: string; text: string } {
-  // The box said the press did nothing: the card is out of date, and says so first.
+  // The box said the press did nothing, or never answered it: the card says so first.
   if ('answer' in state && state.answer && state.answer.outcome !== 'done') return { tone: 'is-attention', text: 'Nothing was done' };
+  if ('lapsed' in state && state.lapsed) return { tone: 'is-attention', text: 'Nothing was done' };
   switch (state.kind) {
     case 'finished':
       return { tone: 'is-attention', text: 'Ready for review' };
@@ -193,6 +195,7 @@ export function ReviewScreen({ view }: { view: ReviewView }) {
             ) : null}
           </p>
           <div className="rv-flags">
+            {view.quiet ? <span className="bs-flag is-attention" data-testid="review-quiet" role="status">{view.quiet}</span> : null}
             <span className={`bs-flag ${flag.tone}`} data-testid="review-state">{flag.text}</span>
             {opens ? <span className="bs-flag is-working rv-wide">Preview running</span> : null}
             <span className={`bs-flag ${view.checks.passed === view.checks.total ? 'is-ok' : 'is-attention'}`}>
@@ -396,11 +399,12 @@ export function ReviewScreen({ view }: { view: ReviewView }) {
 function trailLast(state: CardState, isJohn: boolean): string {
   // What the factory said, when it says the press did nothing. When it did it, the line says so already.
   const said = 'answer' in state && state.answer && state.answer.outcome !== 'done' ? ` ${state.answer.message}` : '';
+  const lapsed = 'lapsed' in state && state.lapsed ? `${state.lapsed.message} ` : '';
   switch (state.kind) {
     case 'finished':
-      return isJohn ? 'Waiting for the founder’s sign-off. You can decide now.' : 'Waiting for your sign-off.';
+      return `${lapsed}${isJohn ? 'Waiting for the founder’s sign-off. You can decide now.' : 'Waiting for your sign-off.'}`;
     case 'signed-off':
-      return state.by === 'you' ? 'Signed off by you. Waiting for John.' : `Signed off by ${state.by}. Waiting for your decision.`;
+      return `${lapsed}${state.by === 'you' ? 'Signed off by you. Waiting for John.' : `Signed off by ${state.by}. Waiting for your decision.`}`;
     case 'sent-back':
       return said ? `Sent back by ${state.by}.${said}` : `Sent back by ${state.by}. Your team is on it.`;
     case 'approved':
@@ -487,6 +491,7 @@ function DecisionPanel({
           <span className="bs-flag is-ok" data-testid="review-signed-by">Signed off by {state.by}</span>
           <span className="bs-flag is-attention">Waiting for John</span>
         </div>
+        <Lapsed state={state} />
         <p className="ui rv-ink">Nothing more is needed from you. When John makes it part of {product}, it appears in What happened.</p>
         <NextLink view={view} primary />
       </section>
@@ -517,7 +522,11 @@ function DecisionPanel({
         )}
       </dl>
       {isJohn && view.forJohn?.nextStep ? <p className="help rv-quiet" data-testid="review-next-step">{view.forJohn.nextStep}</p> : null}
-      <Decision look="review" ventureId={view.ventureId} work={work} isJohn={isJohn} reviewNotes={reviewNotes} onDecided={onDecided} />
+      <Lapsed state={state} />
+      <Decision
+        look="review" ventureId={view.ventureId} work={work} isJohn={isJohn} reviewNotes={reviewNotes} onDecided={onDecided}
+        off={view.quiet ? BUTTONS_OFF : null}
+      />
       <p className="help rv-quiet rv-decision__help">
         {isJohn
           ? 'Only your decision makes it part of the product.'
@@ -527,6 +536,12 @@ function DecisionPanel({
       </p>
     </section>
   );
+}
+
+/** The last press, when the factory let it lapse (FB-278): what became of it, above the buttons that are back. */
+function Lapsed({ state }: { state: CardState }) {
+  if (!('lapsed' in state) || !state.lapsed) return null;
+  return <p className="ui rv-ink" data-testid="review-lapsed">{state.lapsed.message}</p>;
 }
 
 /** What the factory said happened, once it has (FB-276). */

@@ -6,7 +6,9 @@ import { loadVentures, type VentureSummary } from '../ventures';
 import { loadRailData } from '../rail';
 import { loadAccessibleNeedsYou } from '../needs-you-load';
 import { cardStore } from '../card-store-live';
-import { factoryCardsForJohn, ventureCardRows, viewerOf } from '../factory-work-load';
+import { factoryCardsForJohn, ventureCardRows, viewerOf, workPageOff } from '../factory-work-load';
+import { BUTTONS_OFF, QUIET_MS } from '../presses';
+import { DEFAULT_BOX } from '../factory-door';
 import { cardEvents, FACTORY_VENTURE } from '../factory-work';
 import { storedCard } from './review-fixtures';
 
@@ -63,7 +65,7 @@ describe("ARCA's founder", () => {
   });
 
   it('is never handed the factory\'s cards, even by a page that forgot to check', async () => {
-    expect(await factoryCardsForJohn(viewerOf(FOUNDER, arca))).toEqual({ rows: [], cards: [], unread: false });
+    expect(await factoryCardsForJohn(viewerOf(FOUNDER, arca))).toEqual({ rows: [], cards: [], unread: false, quiet: null });
   });
 
   it('sees one row for arca#10, the card, and counts it once', async () => {
@@ -104,6 +106,30 @@ describe('John', () => {
     expect(needs.ventureNames[FACTORY_VENTURE]).toBe('The factory');
     // The factory's card has no Review screen in a venture: nothing links into one.
     expect(needs.cards.find((c) => c.ventureId === FACTORY_VENTURE)?.href).toBeNull();
+  });
+});
+
+describe('when the factory goes quiet (FB-278)', () => {
+  const QUIET = /^The factory hasn't reported since (\d+ \w+, )?\d\d:\d\d\. These may be out of date\.$/;
+  const beat = (msAgo: number) => cardStore()!.beat(DEFAULT_BOX, new Date(Date.now() - msAgo).toISOString());
+
+  afterAll(() => beat(0));
+
+  it('every list of cards says so, and the work page of a carded pull request switches its buttons off', async () => {
+    await beat(QUIET_MS + 60_000);
+    expect((await ventureCardRows(arca, viewerOf(FOUNDER, arca))).quiet).toMatch(QUIET);
+    expect((await factoryCardsForJohn(viewerOf(JOHN, null))).quiet).toMatch(QUIET);
+    expect((await loadAccessibleNeedsYou(FOUNDER)).cardsQuiet).toMatch(QUIET);
+    expect(await workPageOff(arca, 'arca', 21)).toMatch(new RegExp(`These may be out of date\\. ${BUTTONS_OFF}$`));
+    // Work no card stands for has nothing to do with the factory.
+    expect(await workPageOff(arca, 'arca', 999)).toBeNull();
+  });
+
+  it('says nothing while the factory reports', async () => {
+    await beat(60_000);
+    expect((await ventureCardRows(arca, viewerOf(FOUNDER, arca))).quiet).toBeNull();
+    expect((await loadAccessibleNeedsYou(JOHN)).cardsQuiet).toBeNull();
+    expect(await workPageOff(arca, 'arca', 21)).toBeNull();
   });
 });
 

@@ -16,6 +16,7 @@ import { ago, studioNow } from '@/lib/when';
 import { factoryCardsForJohn, ventureCardRows, viewerOf } from '@/lib/factory-work-load';
 import { FACTORY_NAME, FACTORY_VENTURE, cardEvents, type CardEvent } from '@/lib/factory-work';
 import { Mark } from '@/components/Mark';
+import { FactoryQuiet } from '@/components/FactoryQuiet';
 
 /**
  * The window this page shows. One constant, because FB-108's opening paragraph states the same
@@ -70,16 +71,20 @@ export default async function ActivityPage({
   const windowStart = studioNow() - ACTIVITY_WINDOW_DAYS * 86_400_000;
   const email = session.user.email;
   const cardLines: (CardEvent & { ventureName: string })[] = [];
+  // One planning box serves every venture, so any read that has cards says whether it is quiet.
+  let cardsQuiet: string | null = null;
   for (const v of ventures) {
     const summary = ventureSummaries.find((x) => x.id === v.id);
     if (!summary) continue;
     const viewer = viewerOf(email, summary);
     const read = await ventureCardRows(summary, viewer);
+    cardsQuiet ??= read.quiet;
     for (const c of read.cards) cardLines.push(...cardEvents(c, viewer, summary.name).map((e) => ({ ...e, ventureName: summary.name })));
   }
   if (isAdmin) {
     const viewer = viewerOf(email, null);
     const read = await factoryCardsForJohn(viewer);
+    cardsQuiet ??= read.quiet;
     for (const c of read.cards) cardLines.push(...cardEvents(c, viewer, FACTORY_NAME).map((e) => ({ ...e, ventureName: FACTORY_NAME })));
   }
   const shownCards = cardLines
@@ -161,6 +166,8 @@ export default async function ActivityPage({
           {activitySummary.sentences.join(' ')}
         </p>
       )}
+
+      <FactoryQuiet line={cardsQuiet} testId="activity-cards-quiet" />
 
       {feed.length === 0 ? (
         <p className="card muted" data-testid="activity-empty">

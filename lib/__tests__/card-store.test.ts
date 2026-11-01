@@ -17,7 +17,7 @@ import { putTestCards, storedCard, testPng } from './review-fixtures';
  * RESET's cards or pictures, whatever it asks for.
  */
 
-const SCHEMA = ['001_read_model.sql', '008_factory_cards.sql', '009_factory_presses.sql'].map((f) => readFileSync(join(process.cwd(), 'db', f), 'utf8'));
+const SCHEMA = ['001_read_model.sql', '008_factory_cards.sql', '009_factory_presses.sql', '010_press_lapses.sql'].map((f) => readFileSync(join(process.cwd(), 'db', f), 'utf8'));
 
 const ARCA = { id: 'arca', name: 'ARCA', repos: ['arca', 'arca-marketing'], departments: [], founderEmail: 'arca.founder@bruntsfield.capital' } as unknown as VentureSummary;
 const RESET = { id: 'the-reset', name: 'THE RESET', repos: ['thereset-platform'], departments: [], founderEmail: 'ross@bruntsfield.capital' } as unknown as VentureSummary;

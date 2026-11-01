@@ -10,6 +10,7 @@ import { WorkDetail } from '@/components/WorkDetail';
 import { VentureForbidden } from '@/components/VentureForbidden';
 import { ageMs } from '@/lib/when';
 import { checkedDoor, checkedPreview } from '@/lib/preview-check';
+import { workPageOff } from '@/lib/factory-work-load';
 
 /**
  * One piece of work, inside the studio (FB-064).
@@ -68,9 +69,10 @@ export default async function WorkPage({
   // preview that was torn down, or that quietly redirects to the live site, gets words, not a button.
   // Remembered for five minutes per address, and opened in parallel, so this is at most one check
   // of each per page.
-  const [previewCheck, launchCheck] = await Promise.all([
+  const [previewCheck, launchCheck, off] = await Promise.all([
     work.previewUrl ? checkedPreview(work.previewUrl) : Promise.resolve(null),
     launch ? checkedDoor(launch.url) : Promise.resolve(null),
+    workPageOff(venture, repo, n),
   ]);
 
   return (
@@ -78,7 +80,7 @@ export default async function WorkPage({
       <p style={{ fontSize: 'var(--fs-body-sm)' }}>
         <Link href={`/venture/${id}`} data-testid="work-back">← Back to {venture.name}</Link>
       </p>
-      <WorkDetail ventureId={id} work={work} launch={launch} waitingMs={ageMs(work.createdAt)} previewCheck={previewCheck} launchCheck={launchCheck} />
+      <WorkDetail ventureId={id} work={work} launch={launch} waitingMs={ageMs(work.createdAt)} previewCheck={previewCheck} launchCheck={launchCheck} off={off} />
     </>
   );
 }

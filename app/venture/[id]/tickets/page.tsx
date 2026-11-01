@@ -196,7 +196,7 @@ export default async function TicketsPage({
     const card = {
       waits: c.waits, standing: c.standing, words: c.words, sentence: cardSentence(c, viewer.isJohn),
       ageMs: Math.max(0, ageMs(c.at, nowMs) ?? 0), href: c.href,
-      cost: c.john?.cost ?? null, nextStep: c.john?.nextStep ?? null,
+      cost: c.john?.cost ?? null, nextStep: c.john?.nextStep ?? null, quiet: cards.quiet,
     };
     const own = rows.find((r) => r.repo === c.repo && r.id === id && !r.card);
     if (own) {

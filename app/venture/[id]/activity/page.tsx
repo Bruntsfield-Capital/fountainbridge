@@ -16,6 +16,7 @@ import { historyIsPartial, historyScope } from '@/lib/history-scope';
 import { VentureForbidden } from '@/components/VentureForbidden';
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { Mark } from '@/components/Mark';
+import { FactoryQuiet } from '@/components/FactoryQuiet';
 import { CARDS_UNREAD, ventureCardRows, viewerOf } from '@/lib/factory-work-load';
 import { cardEvents } from '@/lib/factory-work';
 
@@ -200,6 +201,7 @@ async function Record({
         appear the moment they are made.
       </p>
 
+      <FactoryQuiet line={cards.quiet} testId="activity-cards-quiet" />
       <ActivityFeed items={feed} couldNotRead={unreadable.length > 0 || failures.length > 0 || cards.unread} />
 
       {cards.unread ? (

@@ -83,7 +83,10 @@ recorded. The stand-in has nothing to collect. THE RESET's card is unchanged.
 
 The stand-in stops reporting. After five minutes, the cards say: "The factory hasn't reported since
 10:42. These may be out of date." The buttons switch off, and the page says why. A press the factory
-never collected ends with "Nothing was done." When the stand-in reports again, the buttons come
+never collected ends with "Nothing was done." So does a press it collected and never answered, 10
+minutes after it was collected; if the stand-in's answer comes later, the card shows that answer
+instead. Either way the card's buttons come back. When the stand-in reports again, the buttons come
 back.
 
-**Checked by:** the line and the switched-off buttons, before and after.
+**Checked by:** the line and the switched-off buttons, before and after. A press made while the
+stand-in is quiet is refused, and nothing is recorded.

@@ -1228,3 +1228,50 @@ press. Not production: a press there is a real decision on ARCA's work.
 
 Nothing scrolls sideways at either size. Each tag sits beside its own confirmation sentence, as
 before.
+
+## FB-278 — the Review screen when the factory goes quiet, 2026-10-30
+
+No new screen and no new layout. Three readings of the Review screen are new. **Quiet:** the
+factory has not reported for five minutes. The line "The factory hasn't reported since 15:15. These
+may be out of date." is the first flag, both buttons are greyed (on a phone, in the bottom bar too),
+and the decision panel says why above them. **Lapsed:** the last decision went 10 minutes without
+the factory taking it or answering it. The flag reads "Nothing was done", the panel says what
+happened above the buttons, and the buttons are back. **The Tickets screen's card detail** carries
+the same quiet line, drawn as its other warnings are. Rendered on Playwright's own studio from this
+branch, on the rig's ARCA cards (#20 waiting, #21 approved by John and never collected, read 10
+minutes later), as ARCA's founder and as John. Each picture was looked at.
+**Not compared with the canvas:** this run could not sign in to the design artifact, and the canvas
+has no artboard for these states. **Not production:** no founder session, and there are no cards
+outside a test copy yet.
+
+| Screen | 1440×1000 | 393×851 |
+| --- | --- | --- |
+| John, waiting (#20) | 1,405px | 1,685px |
+| Founder, waiting (#20) | 1,357px | 1,626px |
+| John, quiet (#20) | 1,502px | 1,786px |
+| Founder, quiet (#20) | 1,387px | 1,727px |
+| John, lapsed (#21) | 1,450px | 1,790px |
+| Founder, lapsed (#21) | 1,366px | 1,731px |
+
+Nothing scrolls sideways at either size. Quiet adds the flag and the one-sentence reason (30 to
+100px); lapsed adds one sentence above the buttons and the same sentence in "Follow the change".
+The quiet line is not on the Tickets list's rows, only on a card's detail.
+
+**Second round, same day.** The quiet line now also stands above the cards on the desk ("Waiting on
+you"), on "What happened" (the venture's and the studio-wide one) and on "Needs you"; and on the
+work page of a pull request the factory has a card for, Accept and Send back are greyed with the
+line and the reason beside them. Rendered on the rig, quiet, as ARCA's founder (desk, What happened)
+and as John (Needs you, the studio-wide What happened). Each picture was looked at: one amber
+sentence in a bordered box, nothing else moves. The work page was not rendered: the rig has no pull
+request the factory has a card for (`decision.test.ts` draws it). Not compared with the canvas or
+production, for the reasons above.
+
+| Screen, quiet | 1440×1000 | 393×851 |
+| --- | --- | --- |
+| Founder, the desk | 2,293px (+60) | 2,477px (+81) |
+| Founder, What happened | 1,132px (+53) | 2,339px (+75) |
+| John, Needs you | 1,843px (+60) | 3,039px (+81) |
+| John, What happened (all ventures) | 1,868px (+56) | 2,835px (+77) |
+
+The figure in brackets is what the line adds to the same page while the factory reports. Nothing
+scrolls sideways at either size.

@@ -13,6 +13,7 @@ import { groupFailures, needsAction } from '@/lib/read-failures';
 import { CHECK_LABEL } from '@/lib/glossary';
 import { howLong } from '@/lib/when';
 import { Mark } from '@/components/Mark';
+import { FactoryQuiet } from '@/components/FactoryQuiet';
 import { checkedPreview } from '@/lib/preview-check';
 import { whyNoLink } from '@/lib/result-link';
 import type { CardRow } from '@/lib/factory-work';
@@ -143,6 +144,7 @@ export default async function AttentionPage({
                   {CHECK_LABEL[sharedCheckState(approvals) as string] ?? CHECK_LABEL.unknown} — the same for all the finished work below.
                 </p>
               ) : null}
+              <FactoryQuiet line={cards.length ? needs.cardsQuiet : null} testId="attention-cards-quiet" />
               <div className="stack" data-testid="attention-queue" style={{ gap: '0.75rem' }}>
                 {finished.map(({ key, pr, card }) => pr ? (
                   <ApprovalRow

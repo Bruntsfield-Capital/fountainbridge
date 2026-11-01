@@ -2,7 +2,8 @@ import type { VentureSummary } from './ventures';
 import type { CardStore } from './card-store';
 import { OUT_OF_DATE } from './review';
 import { pressRecordFile, recordPress, type PressLine } from './press-record';
-import { isPressAction, mayPress, type PressAction } from './presses';
+import { isPressAction, mayPress, quietLine, quietSince, reportedWhen, type PressAction } from './presses';
+import { DEFAULT_BOX } from './factory-door';
 
 /**
  * The studio's side of a press on a factory card (FB-276).
@@ -20,8 +21,11 @@ import { isPressAction, mayPress, type PressAction } from './presses';
  *   2. The press must be one this person may make. A founder may press Stop, Send back and Accept;
  *      only John has Approve, Reject, Try again and Split it. A refused press is never recorded, so
  *      the box can never collect it. It is written as one line to the studio's log instead.
- *   3. The first press wins, and the press must be on the version of the work the page showed. The
- *      store checks both and records the press in one transaction, with the card's row locked.
+ *   3. The factory must be reporting (FB-278). While it has been quiet for five minutes, nothing is
+ *      recorded: a press it cannot see would look as if it had worked.
+ *   4. The first press wins, and the press must be on the version of the work the page showed. The
+ *      store checks both and records the press in one transaction, with the card's row locked. A
+ *      press the factory let lapse no longer counts as the first.
  *
  * In a test copy each recorded press is also written as one line to its state folder
  * (`lib/press-record.ts`), because `harness/END-TO-END.md` says so.
@@ -78,6 +82,24 @@ const LINE: Record<PressAction, PressLine['decision']> = {
 };
 
 /**
+ * When the planning box last reported, if it has been quiet for five minutes (FB-278). Null while it
+ * reports, and before it ever has: a box never heard from has not gone quiet.
+ */
+export async function factoryQuietSince(store: CardStore, now: number): Promise<string | null> {
+  return quietSince((await store.lastBeat(DEFAULT_BOX))?.reportedAt ?? null, now);
+}
+
+/** The line a card shows while the factory is quiet, or null while it reports. */
+export async function factoryQuietLine(store: CardStore, now: number): Promise<string | null> {
+  const since = await factoryQuietSince(store, now);
+  return since ? quietLine(since, now) : null;
+}
+
+/** What a press made while the factory is quiet is told. */
+export const quietRefusal = (since: string, now: number) =>
+  `The factory hasn't reported since ${reportedWhen(since, now)}, so nothing was recorded. Try again once it is back.`;
+
+/**
  * Whether this is a factory card, for the presses that also have a GitHub path (`acceptWork`,
  * `sendBackWork`). A card in any state counts: the studio never calls GitHub for one.
  */
@@ -110,6 +132,10 @@ export async function pressCard(
     deps.log(`refused: ${who.email} pressed ${action} on ${venture.id} ${repo}#${number}, which only John may press. Nothing was recorded.`);
     return { ok: false, message: ONLY_JOHN };
   }
+
+  const now = deps.now().getTime();
+  const quiet = await factoryQuietSince(deps.store, now);
+  if (quiet) return { ok: false, message: quietRefusal(quiet, now) };
 
   const by = who.email.toLowerCase();
   const kept = await deps.store.press(venture.id, { repo, number, action, by, byJohn: who.isJohn, note, seenHeadSha: seen });

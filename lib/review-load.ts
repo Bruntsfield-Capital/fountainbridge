@@ -4,6 +4,7 @@ import { checkedPreview } from './preview-check';
 import { reviewFor, stateFrom, type ReviewCardFile, type ReviewView } from './review';
 import { toReviewCard, type CardStore } from './card-store';
 import { namer } from './factory-work';
+import { factoryQuietLine } from './press';
 
 /**
  * Where the Review screen's cards come from: the card store (FB-275), which the planning box fills
@@ -37,13 +38,17 @@ export async function loadReview(
   viewer: { email: string; isJohn: boolean; admins: string[] },
   store: CardStore | null,
   env: Record<string, string | undefined> = process.env,
+  // The real clock, not `studioNow()`: press times and heartbeats are the real clock's.
+  now: number = Date.now(),
 ): Promise<ReviewView | null> {
   const card = await cardOf(venture, repo, number, store);
   if (!card || !store) return null;
 
-  // Where it stands: the presses on it, from the press store, with the box's answers (FB-276).
+  // Where it stands: the presses on it, from the press store, with the box's answers (FB-276), and
+  // any press the box let lapse (FB-278).
   const state = stateFrom(
     await store.presses(venture.id, repo, number),
+    now,
     namer(viewer.email, viewer.admins, { email: venture.founderEmail, name: venture.founderName }),
   );
 
@@ -53,7 +58,7 @@ export async function loadReview(
   // One at a time: a venture has a handful of finished cards, and each read is its own transaction.
   const waiting: { repo: string; number: number }[] = [];
   for (const w of await store.finished(venture.id, repos)) {
-    const s = w.repo === repo && w.number === number ? null : stateFrom(await store.presses(venture.id, w.repo, w.number));
+    const s = w.repo === repo && w.number === number ? null : stateFrom(await store.presses(venture.id, w.repo, w.number), now);
     if (!s || s.kind === 'finished' || s.kind === 'signed-off') waiting.push(w);
   }
   waiting.sort((a, b) => repos.indexOf(a.repo) - repos.indexOf(b.repo) || a.number - b.number);
@@ -62,6 +67,7 @@ export async function loadReview(
 
   // Opened before it is drawn as a link (FB-184), the same as on the work page.
   const preview = card.previewUrl ? await checkedPreview(card.previewUrl, env) : null;
+  const quiet = await factoryQuietLine(store, now);
 
   return reviewFor(card, {
     ventureId: venture.id,
@@ -76,5 +82,6 @@ export async function loadReview(
       next: next ? `/venture/${venture.id}/review/${next.repo}/${next.number}` : null,
     },
     viewer: { isJohn: viewer.isJohn },
+    quiet,
   });
 }

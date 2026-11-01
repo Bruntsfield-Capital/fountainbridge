@@ -42,6 +42,8 @@ export interface LoadedCard {
   ventureId: string;
   card: StoredCard;
   presses: StoredPress[];
+  /** When the store was read. Whether a press has lapsed (FB-278) is judged at this instant. */
+  readAt: number;
 }
 
 /**
@@ -86,10 +88,10 @@ export function namer(viewerEmail: string, admins: readonly string[], founder: {
 export function standingOf(lc: LoadedCard, name: Viewer['name'] = (e) => e): { standing: Standing; state: CardState | null; at: string } {
   const { card, presses } = lc;
   if (card.state !== 'finished') return { standing: card.state, state: null, at: card.sentAt };
-  const state = stateFrom(presses, name);
+  const state = stateFrom(presses, lc.readAt, name);
   switch (state.kind) {
     case 'finished':
-      return { standing: 'finished', state, at: card.plain.finishedAt || card.sentAt };
+      return { standing: 'finished', state, at: state.lapsed?.at ?? (card.plain.finishedAt || card.sentAt) };
     case 'signed-off':
       return { standing: 'signed-off', state, at: state.at };
     default: {
@@ -348,7 +350,7 @@ export function cardEvents(lc: LoadedCard, viewer: Viewer, ventureName: string):
   const { card } = lc;
   const title = titleOf(card.plain, viewer);
   const say = sayer(viewer);
-  const { standing } = standingOf(lc, viewer.name);
+  const { standing, state } = standingOf(lc, viewer.name);
   const base = {
     ventureId: lc.ventureId, repo: card.repo, number: card.number, ref: card.plain.ref ?? '',
     href: reviewHref(lc), cost: viewer.isJohn ? johnLines(card).cost : null,
@@ -387,5 +389,7 @@ export function cardEvents(lc: LoadedCard, viewer: Viewer, ventureName: string):
       }
     }
   }
+  const lapsed = state && 'lapsed' in state ? state.lapsed : undefined;
+  if (lapsed) events.push({ ...base, at: lapsed.at, text: `${title}: ${lapsed.message}`, tone: 'attention' });
   return events;
 }

@@ -497,6 +497,7 @@ async function Desk({
       brief={brief}
       openWorkQueue={queue}
       cardItems={cardItems}
+      cardsQuiet={cardsRead.quiet}
       summary={summarySentence}
       blocker={blocker}
       degraded={degraded}

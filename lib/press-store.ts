@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
-  stands,
+  LAPSE_MS, hasLapsed, stands,
   type NewPress, type Outcome, type PressAction, type PressKept, type StoredPress, type TelegramPress,
 } from './presses';
 
@@ -72,10 +72,20 @@ const COLUMNS = `id, venture_id, repo, number, action, by_email, by_john, source
 export const PRESS_SQL = {
   // Locked until the transaction ends, so a second press on this card waits here for the first.
   lockCard: 'select head_sha from factorystore.cards where repo = $1 and number = $2 for update',
+  // `stands` in lib/presses.ts, in SQL: a settling press the box did, or one it has not answered
+  // and that has not lapsed (FB-278, `LAPSE_MS`).
   standing: `select 1 from factorystore.presses
-              where repo = $1 and number = $2 and seen_head_sha = $3
-                and action <> 'accept' and (outcome is null or outcome = 'done')
+              where repo = $1 and number = $2 and seen_head_sha = $3 and action <> 'accept'
+                and (outcome = 'done'
+                     or (outcome is null and lapsed_at is null
+                         and coalesce(collected_at, pressed_at) > now() - make_interval(secs => $4)))
               limit 1`,
+  // Run just before a new press is written, once `standing` found none: any unanswered press left on
+  // the card has lapsed. Marked so `presses_one_standing` no longer counts it. Not an answer: the
+  // box's answer may still come, and the card shows it.
+  lapse: `update factorystore.presses set lapsed_at = now()
+           where repo = $1 and number = $2 and seen_head_sha = $3 and source = 'studio'
+             and action <> 'accept' and outcome is null and lapsed_at is null`,
   signedOff: `select 1 from factorystore.presses
                where repo = $1 and number = $2 and seen_head_sha = $3 and action = 'accept' and by_email = $4
                limit 1`,
@@ -89,8 +99,11 @@ export const PRESS_SQL = {
              where repo = $1 and number = $2
                and seen_head_sha = (select head_sha from factorystore.cards where repo = $1 and number = $2)
              order by pressed_at, seq`,
+  // A press left uncollected past `LAPSE_MS` has lapsed: the card says nothing was done, so the box
+  // must never be handed it to do.
   waiting: `select ${COLUMNS} from factorystore.presses
              where collected_at is null and source = 'studio' and (action = 'accept') = $1
+               and (action = 'accept' or pressed_at > now() - make_interval(secs => $3))
              order by pressed_at, seq
              limit $2`,
   markCollected: `update factorystore.presses set collected_at = now()
@@ -118,6 +131,8 @@ export const PRESS_SQL = {
                              where c.repo = p.repo and c.number = p.number and c.head_sha = p.seen_head_sha)
               order by pressed_at, seq`,
 } as const;
+
+const LAPSE_SECONDS = LAPSE_MS / 1000;
 
 const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : new Date(String(v)).toISOString());
 
@@ -175,7 +190,7 @@ export function sqlPressStore(run: { asVenture<T>(ventureId: string, fn: (q: Que
       bytes,
       size,
       alwaysOne,
-      (v, n) => run.asVenture(v, async (q) => (await q.query<Record<string, unknown>>(PRESS_SQL.waiting, [signOffs, n])).rows.map(pressFromRow)),
+      (v, n) => run.asVenture(v, async (q) => (await q.query<Record<string, unknown>>(PRESS_SQL.waiting, [signOffs, n, LAPSE_SECONDS])).rows.map(pressFromRow)),
       (v, ids) => run.asVenture(v, async (q) => (await q.query<Record<string, unknown>>(PRESS_SQL.markCollected, [ids])).rows.map(pressFromRow)),
     );
 
@@ -186,9 +201,10 @@ export function sqlPressStore(run: { asVenture<T>(ventureId: string, fn: (q: Que
         if (!card) return 'no-card';
         const head = String(card.head_sha ?? '');
         // A settled card takes no more presses, a sign-off included.
-        if ((await q.query(PRESS_SQL.standing, [p.repo, p.number, head])).rows.length) return 'out-of-date';
+        if ((await q.query(PRESS_SQL.standing, [p.repo, p.number, head, LAPSE_SECONDS])).rows.length) return 'out-of-date';
         if (p.seenHeadSha !== null && p.seenHeadSha !== head) return 'changed';
         if (p.action === 'accept' && (await q.query(PRESS_SQL.signedOff, [p.repo, p.number, head, p.by])).rows.length) return 'already-signed-off';
+        await q.query(PRESS_SQL.lapse, [p.repo, p.number, head]);
         const { rows } = await q.query(PRESS_SQL.insert, [p.repo, p.number, p.action, p.by, p.byJohn, p.note, head]);
         if (rows.length) return 'recorded';
         return p.action === 'accept' ? 'already-signed-off' : 'out-of-date';
@@ -245,7 +261,8 @@ export function memoryPressStore(headOf: (ventureId: string, repo: string, numbe
 
   const collectOf = (signOffs: boolean, ventureIds: string[], limit: number, bytes: number, size: Room['size'], alwaysOne: boolean) => {
     const waiting = all.filter((p) =>
-      ventureIds.includes(p.ventureId) && p.source === 'studio' && p.collectedAt === null && (p.action === 'accept') === signOffs);
+      ventureIds.includes(p.ventureId) && p.source === 'studio' && p.collectedAt === null && (p.action === 'accept') === signOffs
+      && !hasLapsed(p, now().getTime()));
     const { chosen, used } = choose(waiting, limit, bytes, size, alwaysOne);
     const at = now().toISOString();
     const out = all.filter((p) => chosen.some((c) => c.id === p.id));
@@ -258,7 +275,7 @@ export function memoryPressStore(headOf: (ventureId: string, repo: string, numbe
       const head = headOf(v, p.repo, p.number);
       if (head === null) return 'no-card';
       const here = onCard(v, p.repo, p.number, head);
-      if (here.some(stands)) return 'out-of-date';
+      if (here.some((x) => stands(x, now().getTime()))) return 'out-of-date';
       if (p.seenHeadSha !== null && p.seenHeadSha !== head) return 'changed';
       if (p.action === 'accept' && here.some((x) => x.action === 'accept' && x.by === p.by)) return 'already-signed-off';
       all.push({

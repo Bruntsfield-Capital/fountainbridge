@@ -3,7 +3,7 @@ import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { testLogin } from './helpers';
 import { stateFolder } from './server-env.mjs';
-import { answerPress, collect, putReviewCards, reportTelegram, sendToDoor } from './review-cards';
+import { answerPress, collect, putReviewCards, reportHeartbeat, reportTelegram, sendToDoor } from './review-cards';
 
 /**
  * FB-274: the Review screen, and journeys 4 and 5 of `harness/END-TO-END.md`.
@@ -391,6 +391,63 @@ test.describe("John's parts never reach a founder's browser", () => {
     await expect(page.getByTestId('review-cost')).toHaveText('$3.40 so far, of a $25 budget');
     await expect(page.getByTestId('review-next-step')).toContainText('What to do next');
     await expect(page.getByTestId('review-run').locator('a')).toHaveAttribute('href', /archon/);
+  });
+});
+
+test.describe('journey 7: the factory goes quiet', () => {
+  test.beforeAll(async ({ browser }, info) => {
+    rmSync(PRESSES, { force: true });
+    await putReviewCards(browser, String(info.project.use.baseURL));
+    await drain(standIn);
+  });
+
+  test('after five minutes without a report the card says so and its buttons are off; when it reports again they come back', async ({ page, browser }) => {
+    await testLogin(page, JOHN);
+    await page.goto(REVIEW_21);
+    await expect(page.getByTestId('review-quiet')).toHaveCount(0);
+    await expect(page.getByTestId('review-accept')).toBeEnabled();
+
+    // The stand-in's last report, signed four minutes and 58 seconds ago: quiet two seconds from now.
+    expect((await reportHeartbeat(standIn, Date.now() - 298_000)).status()).toBe(200);
+    await expect.poll(async () => {
+      await page.reload();
+      return page.getByTestId('review-quiet').count();
+    }, { timeout: 15_000 }).toBe(1);
+    await expect(page.getByTestId('review-quiet')).toHaveText(/^The factory hasn't reported since \d\d:\d\d\. These may be out of date\.$/);
+    await expect(page.getByTestId('review-accept')).toBeDisabled();
+    await expect(page.getByTestId('review-sendback')).toBeDisabled();
+    await expect(page.getByTestId('review-off')).toHaveText('The buttons are off until the factory reports again, because a decision made now would not reach it.');
+    await page.screenshot({ path: `${SHOTS}/42-review-quiet.png`, fullPage: true });
+
+    // Pressed anyway, straight at the studio's press door: refused, and nothing is recorded.
+    const answer = await callPressDoor(page, ['arca', 'arca', 21, 'accept', '', null]);
+    expect(answer).toMatch(/The factory hasn't reported since \d\d:\d\d, so nothing was recorded\./);
+    expect(presses(21)).toEqual([]);
+    expect(await collect(standIn)).toMatchObject({ presses: [], signOffs: [] });
+
+    // Every other list of the founder's cards says it too: the desk, "What happened", and a card's
+    // detail on the Tickets screen.
+    const founder = await browser.newPage();
+    await testLogin(founder, FOUNDER);
+    const QUIET = /The factory hasn't reported since \d\d:\d\d\. These may be out of date\./;
+    await founder.goto('/venture/arca');
+    await expect(founder.getByTestId('waiting-cards-quiet')).toHaveText(QUIET);
+    await founder.goto('/venture/arca/activity');
+    await expect(founder.getByTestId('activity-cards-quiet')).toHaveText(QUIET);
+    await founder.goto('/venture/arca/tickets?filter=needs');
+    await founder.getByTestId('tickets-row-ARCA-070').click();
+    await expect(founder.getByTestId('detail-card-quiet')).toHaveText(QUIET);
+
+    // The stand-in reports again.
+    expect((await reportHeartbeat(standIn)).status()).toBe(200);
+    await page.reload();
+    await expect(page.getByTestId('review-quiet')).toHaveCount(0);
+    await expect(page.getByTestId('review-off')).toHaveCount(0);
+    await expect(page.getByTestId('review-accept')).toBeEnabled();
+    await founder.goto('/venture/arca');
+    await expect(founder.getByTestId('waiting-on-you')).toBeVisible();
+    await expect(founder.getByTestId('waiting-cards-quiet')).toHaveCount(0);
+    await founder.close();
   });
 });
 

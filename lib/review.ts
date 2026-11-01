@@ -9,11 +9,12 @@
  * is not named here reaches nobody, which is the rule the factory marks its cards by (cowgate
  * CG-0063: "anything not marked is treated as John's").
  *
- * Pure: no reads, no clock. The loader (`lib/review-load.ts`) does the reading.
+ * Pure: no reads, and no clock of its own: what depends on the time is handed `now`. The loader
+ * (`lib/review-load.ts`) does the reading.
  */
 
 import type { PreviewCheck } from './result-link';
-import { settles, type BoxAnswer, type StoredPress } from './presses';
+import { NOT_ANSWERED, NOT_COLLECTED, hasLapsed, lapsesAt, settles, type BoxAnswer, type StoredPress } from './presses';
 
 /** The four pictures: before and after the change, at a computer's size and a phone's. */
 export const PICTURES = ['before-computer', 'after-computer', 'before-phone', 'after-phone'] as const;
@@ -60,10 +61,23 @@ export interface ReviewCardFile {
 
 export type Tone = 'ok' | 'working' | 'attention' | 'blocked' | 'idle';
 
+/**
+ * The last press on a card, when the box let it lapse (FB-278): never collected, or collected and
+ * never answered, for 10 minutes. Nothing was done, and the card waits for a decision again.
+ */
+export interface LapsedPress {
+  action: StoredPress['action'];
+  by: string;
+  /** When it lapsed. */
+  at: string;
+  /** Ends "Nothing was done.". */
+  message: string;
+}
+
 /** Where the card stands now, after any presses (FB-276: read from the press store). */
 export type CardState =
-  | { kind: 'finished' }
-  | { kind: 'signed-off'; by: string; at: string; note: string }
+  | { kind: 'finished'; lapsed?: LapsedPress }
+  | { kind: 'signed-off'; by: string; at: string; note: string; lapsed?: LapsedPress }
   | { kind: 'sent-back'; by: string; at: string; note: string; signedOffBy: string | null; answer: BoxAnswer | null }
   | { kind: 'approved'; by: string; at: string; signedOffBy: string | null; answer: BoxAnswer | null }
   /** John's other presses: Stop (a founder's too), Reject, Try again, Split it. From here or from Telegram. */
@@ -76,18 +90,34 @@ export type CardState =
  * it is the latest settling press: the one that still stands, or, if the box said each did nothing,
  * the last of those, with its answer. A founder's sign-off before it is remembered.
  *
+ * When the latest settling press has lapsed by `now` (FB-278), it settles nothing: the card waits as
+ * it did before it, with the lapse beside it. A real answer from the box, however late, wins. A late
+ * `done` can leave two presses the box did, the lapsed one and the one pressed after it: the card
+ * shows the later, which is the newer decision.
+ *
  * `name` turns the address that pressed into what this viewer reads: "you", "John", the founder's
  * name. Done here, on the server, so no address reaches a screen that does not need it. A tap on
  * Telegram says so.
  */
-export function stateFrom(presses: StoredPress[], name: (email: string) => string = (e) => e): CardState {
+export function stateFrom(presses: StoredPress[], now: number, name: (email: string) => string = (e) => e): CardState {
   const settling = presses.filter((p) => settles(p.action));
-  const chosen = settling.find((p) => p.answer?.outcome === 'done') ?? settling[settling.length - 1] ?? null;
+  const latest = settling[settling.length - 1] ?? null;
+  const done = settling.filter((p) => p.answer?.outcome === 'done');
+  const chosen = done[done.length - 1] ?? (latest && !hasLapsed(latest, now) ? latest : null);
   const signOffs = presses.filter((p) => p.action === 'accept' && (!chosen || p.pressedAt <= chosen.pressedAt));
   const signOff = signOffs[signOffs.length - 1] ?? null;
   const who = (p: StoredPress) => (p.source === 'telegram' ? `${name(p.by)} on Telegram` : name(p.by));
 
-  if (!chosen) return signOff ? { kind: 'signed-off', by: who(signOff), at: signOff.pressedAt, note: signOff.note } : { kind: 'finished' };
+  if (!chosen) {
+    const lapsed: LapsedPress | undefined = latest
+      ? {
+        action: latest.action, by: who(latest), at: new Date(lapsesAt(latest) as number).toISOString(),
+        message: latest.collectedAt ? NOT_ANSWERED : NOT_COLLECTED,
+      }
+      : undefined;
+    const waiting = lapsed ? { lapsed } : {};
+    return signOff ? { kind: 'signed-off', by: who(signOff), at: signOff.pressedAt, note: signOff.note, ...waiting } : { kind: 'finished', ...waiting };
+  }
   const base = { by: who(chosen), at: chosen.pressedAt, signedOffBy: signOff ? who(signOff) : null, answer: chosen.answer };
   if (chosen.action === 'send-back') return { kind: 'sent-back', ...base, note: chosen.note };
   if (chosen.action === 'approve') return { kind: 'approved', ...base };
@@ -132,6 +162,11 @@ export interface ReviewView {
   place: { index: number; of: number; next: string | null };
   /** Whose screen this is. John is whoever `STUDIO_ADMIN_EMAILS` names. */
   viewer: { isJohn: boolean };
+  /**
+   * "The factory hasn't reported since 10:42. These may be out of date.", while the planning box has
+   * been quiet for five minutes (FB-278). The buttons are off until it reports again.
+   */
+  quiet: string | null;
   /** John's parts. Present only when the viewer is John. */
   forJohn: { cost: string | null; nextStep: string | null; runUrl: string | null } | null;
 }
@@ -184,6 +219,7 @@ export function reviewFor(
     state: CardState;
     place: ReviewView['place'];
     viewer: ReviewView['viewer'];
+    quiet?: string | null;
   },
 ): ReviewView {
   const john = at.viewer.isJohn;
@@ -221,6 +257,7 @@ export function reviewFor(
     state,
     place: at.place,
     viewer: at.viewer,
+    quiet: at.quiet ?? null,
     forJohn: john
       ? { cost: card.forJohn?.cost ?? null, nextStep: card.forJohn?.nextStep ?? null, runUrl: card.forJohn?.runUrl ?? null }
       : null,

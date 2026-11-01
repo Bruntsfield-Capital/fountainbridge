@@ -21,8 +21,10 @@ const ARCA = { email: FOUNDER, name: 'Sam' };
 const founder: Viewer = { isJohn: false, name: namer(FOUNDER, [JOHN], ARCA) };
 const john: Viewer = { isJohn: true, name: namer(JOHN, [JOHN], ARCA) };
 
-const loaded = (repo: string, number: number, presses: StoredPress[] = [], ventureId = 'arca'): LoadedCard => ({
-  ventureId, card: storedCard(repo, number), presses,
+/** Just after the last of the presses below: none of them has lapsed. */
+const READ_AT = Date.parse('2026-07-21T10:09:30.000Z');
+const loaded = (repo: string, number: number, presses: StoredPress[] = [], ventureId = 'arca', readAt = READ_AT): LoadedCard => ({
+  ventureId, card: storedCard(repo, number), presses, readAt,
 });
 
 let seq = 0;
@@ -141,6 +143,17 @@ describe('what happened, per card', () => {
     ]);
   });
 
+  it('a press the factory let lapse says nothing was done, and the card waits again (FB-278)', () => {
+    const approve = press('approve', JOHN, { pressedAt: '2026-07-21T10:00:00.000Z' });
+    const card = loaded('arca', 21, [approve], 'arca', Date.parse('2026-07-21T10:10:00.000Z'));
+    expect(cardEvents(card, founder, 'ARCA').map((l) => l.text)).toEqual([
+      'Your team finished Prices in pounds for every collector. It waits for your OK.',
+      'John approved Prices in pounds for every collector.',
+      'Prices in pounds for every collector: The factory did not pick up the last decision within 10 minutes. Nothing was done.',
+    ]);
+    expect(cardRow(card, founder, 'ARCA')).toMatchObject({ standing: 'finished', waits: true, at: '2026-07-21T10:10:00.000Z' });
+  });
+
   it('go into the feed as rows of their own, named by ticket and surface, newest first', () => {
     const cards = cardEvents(loaded('arca', 22), founder, 'ARCA');
     const { items } = buildFeed({ activity: [], runs: [], approvals: [], cards, surfaces: { arca: 'Build — Product' }, ventureName: 'ARCA' });
@@ -202,7 +215,7 @@ describe('the Tickets screen', () => {
     const c = cardRow(lc, viewer, 'ARCA');
     return {
       id: c.ref, title: c.title, repo: c.repo, group: cardGroup(c), item: null, progress: null, waiting: null, surface: 'Build',
-      card: { waits: c.waits, standing: c.standing, words: c.words, sentence: '', ageMs: 0, href: c.href, cost: c.john?.cost ?? null, nextStep: c.john?.nextStep ?? null },
+      card: { waits: c.waits, standing: c.standing, words: c.words, sentence: '', ageMs: 0, href: c.href, cost: c.john?.cost ?? null, nextStep: c.john?.nextStep ?? null, quiet: null },
     };
   };
 

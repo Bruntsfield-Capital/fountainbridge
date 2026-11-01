@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { founderSafe, isSettled, noteFrom, reviewFor, stateFrom, type ReviewCardFile } from '../review';
 import { toReviewCard } from '../card-store';
-import type { BoxAnswer, PressAction, StoredPress } from '../presses';
+import { LAPSE_MS, NOT_ANSWERED, NOT_COLLECTED, QUIET_MS, quietLine, quietSince, type BoxAnswer, type PressAction, type StoredPress } from '../presses';
 import { storedCard, withPictures } from './review-fixtures';
 
 /**
@@ -138,52 +138,104 @@ describe("a card's state", () => {
     seenHeadSha: 'sha', pressedAt: `2026-07-21T10:00:0${n % 10}Z`, collectedAt: null, answer: null, ...patch,
   });
   const said = (outcome: BoxAnswer['outcome'], message = 'Said.'): BoxAnswer => ({ outcome, message, at: '2026-07-21T11:00:00Z' });
+  /** A minute after the presses below: none of them has lapsed. */
+  const NOW = Date.parse('2026-07-21T10:01:00Z');
 
   it('is finished until someone presses', () => {
-    expect(stateFrom([])).toEqual({ kind: 'finished' });
+    expect(stateFrom([], NOW)).toEqual({ kind: 'finished' });
   });
 
   it("a founder's sign-off does not settle it", () => {
-    const s = stateFrom([press('accept', 'f@x', { note: 'Lovely.' })]);
+    const s = stateFrom([press('accept', 'f@x', { note: 'Lovely.' })], NOW);
     expect(s).toMatchObject({ kind: 'signed-off', by: 'f@x', note: 'Lovely.' });
     expect(isSettled(s)).toBe(false);
   });
 
   it("a founder's sign-off then John's approval is approved, and remembers the sign-off", () => {
-    const s = stateFrom([press('accept', 'f@x'), press('approve', 'j@x')]);
+    const s = stateFrom([press('accept', 'f@x'), press('approve', 'j@x')], NOW);
     expect(s).toMatchObject({ kind: 'approved', by: 'j@x', signedOffBy: 'f@x', answer: null });
     expect(isSettled(s)).toBe(true);
   });
 
   it("shows the factory's answer once it has one", () => {
-    expect(stateFrom([press('approve', 'j@x', { answer: said('done', 'Made part of ARCA.') })])).toMatchObject({
+    expect(stateFrom([press('approve', 'j@x', { answer: said('done', 'Made part of ARCA.') })], NOW)).toMatchObject({
       kind: 'approved', answer: { outcome: 'done', message: 'Made part of ARCA.' },
     });
   });
 
   it('the press the factory did wins over a later one it said did nothing', () => {
-    const s = stateFrom([press('send-back', 'f@x', { answer: said('done') }), press('approve', 'j@x', { answer: said('out-of-date') })]);
+    const s = stateFrom([press('send-back', 'f@x', { answer: said('done') }), press('approve', 'j@x', { answer: said('out-of-date') })], NOW);
     expect(s).toMatchObject({ kind: 'sent-back', by: 'f@x' });
   });
 
   it('a press the factory said did nothing still shows, with what it said', () => {
-    const s = stateFrom([press('approve', 'j@x', { answer: said('out-of-date', 'Nothing was done.') })]);
+    const s = stateFrom([press('approve', 'j@x', { answer: said('out-of-date', 'Nothing was done.') })], NOW);
     expect(s).toMatchObject({ kind: 'approved', answer: { outcome: 'out-of-date' } });
     expect(isSettled(s)).toBe(true);
   });
 
   it("John's other presses are decided, by name", () => {
     for (const action of ['stop', 'reject', 'try-again', 'split'] as const) {
-      expect(stateFrom([press(action, 'j@x')])).toMatchObject({ kind: 'decided', action, by: 'j@x' });
+      expect(stateFrom([press(action, 'j@x')], NOW)).toMatchObject({ kind: 'decided', action, by: 'j@x' });
     }
   });
 
   it('a tap on Telegram says so', () => {
-    const s = stateFrom([press('reject', 'j@x', { source: 'telegram', answer: said('done') })], (e) => (e === 'j@x' ? 'John' : e));
+    const s = stateFrom([press('reject', 'j@x', { source: 'telegram', answer: said('done') })], NOW, (e) => (e === 'j@x' ? 'John' : e));
     expect(s).toMatchObject({ kind: 'decided', action: 'reject', by: 'John on Telegram' });
   });
 
+  it('a press the factory never collected lapses after 10 minutes: nothing was done, and the card waits again', () => {
+    const approve = press('approve', 'j@x');
+    const lapses = Date.parse(approve.pressedAt) + LAPSE_MS;
+    expect(stateFrom([approve], lapses - 1)).toMatchObject({ kind: 'approved', answer: null });
+    const s = stateFrom([approve], lapses);
+    expect(s).toEqual({
+      kind: 'finished',
+      lapsed: { action: 'approve', by: 'j@x', at: new Date(lapses).toISOString(), message: NOT_COLLECTED },
+    });
+    expect(isSettled(s)).toBe(false);
+  });
+
+  it('a press collected and never answered lapses 10 minutes after it was collected, keeping the sign-off before it', () => {
+    const presses = [press('accept', 'f@x'), press('approve', 'j@x', { collectedAt: '2026-07-21T10:30:00Z' })];
+    expect(stateFrom(presses, Date.parse('2026-07-21T10:39:59Z'))).toMatchObject({ kind: 'approved' });
+    expect(stateFrom(presses, Date.parse('2026-07-21T10:40:00Z'))).toMatchObject({
+      kind: 'signed-off', by: 'f@x', lapsed: { message: NOT_ANSWERED, at: '2026-07-21T10:40:00.000Z' },
+    });
+  });
+
+  it("the factory's late answer wins over the lapse", () => {
+    const late = press('approve', 'j@x', { collectedAt: '2026-07-21T10:30:00Z', answer: said('done', 'Made part of ARCA.') });
+    expect(stateFrom([late], Date.parse('2026-07-22T00:00:00Z'))).toMatchObject({ kind: 'approved', answer: { outcome: 'done' } });
+  });
+
+  it('when the box did a lapsed press after all and the press after it too, the card shows the later', () => {
+    const presses = [
+      press('approve', 'j@x', { collectedAt: '2026-07-21T10:00:00Z', answer: said('done', 'Made part of ARCA.') }),
+      press('try-again', 'j@x', { answer: said('done', 'Building it again.') }),
+    ];
+    expect(stateFrom(presses, NOW)).toMatchObject({ kind: 'decided', action: 'try-again', answer: { message: 'Building it again.' } });
+  });
+
   it('says who pressed in the words the viewer reads', () => {
-    expect(stateFrom([press('accept', 'f@x')], (e) => (e === 'f@x' ? 'you' : e))).toMatchObject({ by: 'you' });
+    expect(stateFrom([press('accept', 'f@x')], NOW, (e) => (e === 'f@x' ? 'you' : e))).toMatchObject({ by: 'you' });
+  });
+});
+
+describe('when the factory goes quiet (FB-278)', () => {
+  it('is quiet only after five minutes without a report, and never before the first', () => {
+    const last = '2026-11-04T10:42:00Z';
+    expect(quietSince(null, Date.parse(last))).toBeNull();
+    expect(quietSince(last, Date.parse(last) + QUIET_MS)).toBeNull();
+    expect(quietSince(last, Date.parse(last) + QUIET_MS + 1)).toBe(last);
+  });
+
+  it('names the time it last reported, in London time, and the day when it was not today', () => {
+    const now = Date.parse('2026-11-04T10:50:00Z');
+    expect(quietLine('2026-11-04T10:42:10Z', now)).toBe("The factory hasn't reported since 10:42. These may be out of date.");
+    expect(quietLine('2026-11-03T10:42:10Z', now)).toBe("The factory hasn't reported since 3 Nov, 10:42. These may be out of date.");
+    // Summer time: London is an hour ahead of the clock the box signs with.
+    expect(quietLine('2026-07-21T09:42:00Z', Date.parse('2026-07-21T10:00:00Z'))).toContain('since 10:42.');
   });
 });

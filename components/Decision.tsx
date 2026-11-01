@@ -116,6 +116,7 @@ export function Decision({
   suggestion = null,
   isJohn = false,
   reviewNotes = null,
+  off = null,
   onDecided,
 }: {
   /** Which screen this is on. Sets the words, the test ids and the layout; never what a press does. */
@@ -132,6 +133,8 @@ export function Decision({
   isJohn?: boolean;
   /** Review screen: the notes written on its pictures and in its box. */
   reviewNotes?: ReviewNotes | null;
+  /** Why the buttons are switched off, drawn above them. Null when they are on. */
+  off?: string | null;
   /** Called once a press has gone through. The Tickets screen shows its outcome from this. */
   onDecided?: (result: DecisionResult) => void;
 }) {
@@ -171,12 +174,17 @@ export function Decision({
           <span className="tag tag-accent" data-testid="work-state">{stateLabel(result)}</span>
         ) : (
           <>
+            {off ? (
+              <p data-testid="work-off" style={{ fontSize: 'var(--fs-body-sm)', margin: 0, width: '100%', maxWidth: 'var(--content-narrow)', color: toneColor('attention') }}>
+                <Mark tone="attention" />{off}
+              </p>
+            ) : null}
             {blocked ?? (
               <button
                 type="button"
                 className="btn btn-primary"
                 data-testid="work-accept"
-                disabled={busy('accept')}
+                disabled={busy('accept') || Boolean(off)}
                 onClick={() => go('accept')}
               >
                 {busy('accept') ? 'Accepting…' : 'Accept this work'}
@@ -190,7 +198,7 @@ export function Decision({
                     type="button"
                     className="btn btn-primary"
                     data-testid="work-sendback"
-                    disabled={busy('send-back') || !note.trim()}
+                    disabled={busy('send-back') || !note.trim() || Boolean(off)}
                     onClick={() => go('send-back')}
                   >
                     {busy('send-back') ? 'Sending…' : 'Send this back'}
@@ -201,7 +209,7 @@ export function Decision({
                 </div>
               </div>
             ) : (
-              <button type="button" className="btn" data-testid="work-sendback-open" onClick={() => setNoteOpen(true)}>
+              <button type="button" className="btn" data-testid="work-sendback-open" disabled={Boolean(off)} onClick={() => setNoteOpen(true)}>
                 Send it back with a note
               </button>
             )}
@@ -228,12 +236,13 @@ export function Decision({
     return (
       <div className="rv-decide">
         {error ? <p className="rv-decide__msg is-refused" data-testid="review-msg" role="status"><Mark />{error}</p> : null}
+        {off ? <p className="rv-decide__msg is-refused" data-testid="review-off"><Mark />{off}</p> : null}
         <div className="rv-decide__buttons">
           <button
             type="button"
             className="bs-btn bs-btn--primary rv-decide__accept"
             data-testid="review-accept"
-            disabled={pending}
+            disabled={pending || Boolean(off)}
             onClick={() => go('accept')}
           >
             {busy('accept') ? 'Working…' : isJohn ? 'Make it part of my product →' : 'Sign it off →'}
@@ -242,7 +251,7 @@ export function Decision({
             type="button"
             className="bs-btn rv-decide__sendback"
             data-testid="review-sendback"
-            disabled={pending || !sendBack}
+            disabled={pending || !sendBack || Boolean(off)}
             onClick={() => go('send-back')}
           >
             {busy('send-back') ? 'Sending…' : (

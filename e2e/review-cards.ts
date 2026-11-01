@@ -19,6 +19,9 @@ import { studioTestEnv } from './server-env.mjs';
  * FB-276: this is also the stand-in factory's side of a press. It collects what the studio recorded
  * (`collect`), says what happened to each (`answerPress`), and reports a tap made on Telegram
  * (`reportTelegram`), all through the same door, signed the same way.
+ *
+ * FB-278: and it reports, as the box does once a minute (`reportHeartbeat`). Every `putReviewCards`
+ * reports first, so each spec starts with a factory that is reporting, whatever the one before did.
  */
 
 const FIXTURES = 'e2e/fixtures/review';
@@ -70,6 +73,8 @@ export async function putReviewCards(browser: Browser, baseURL: string): Promise
   const api = await request.newContext({ baseURL });
   const version = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   try {
+    const beat = await reportHeartbeat(api);
+    if (!beat.ok()) throw new Error(`the door refused a heartbeat: ${beat.status()} ${await beat.text()}`);
     for (const fixture of testCards()) {
       const card = { ...fixture, headSha: `${fixture.headSha}-${version}` };
       const sent = await sendToDoor(api, JSON.stringify(card));
@@ -113,6 +118,14 @@ export async function collect(api: APIRequestContext): Promise<{ presses: Collec
 /** The stand-in says what happened to a press it collected. */
 export async function answerPress(api: APIRequestContext, id: string, outcome: 'done' | 'out-of-date' | 'refused', message: string) {
   return sendToDoor(api, JSON.stringify({ kind: 'press-result', id, outcome, message }));
+}
+
+/**
+ * The stand-in's heartbeat. The studio keeps the time it was signed at, so `at` a little under five
+ * minutes ago (the most the door allows) is a box that is about to go quiet.
+ */
+export async function reportHeartbeat(api: APIRequestContext, at: number = Date.now()) {
+  return sendToDoor(api, JSON.stringify({ kind: 'heartbeat' }), SECRET, at);
 }
 
 /** The stand-in reports a tap John made on Telegram. */

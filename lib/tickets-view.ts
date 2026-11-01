@@ -119,6 +119,8 @@ export interface CardPointer {
   /** John's parts: null for anyone else, so a founder's page is never sent them. */
   cost: string | null;
   nextStep: string | null;
+  /** "The factory hasn't reported since 10:42. …", while the planning box is quiet (FB-278). */
+  quiet: string | null;
 }
 
 /** An external send on the Tickets screen: where it is decided, and what state it is in. */

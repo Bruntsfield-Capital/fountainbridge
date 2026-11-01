@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { sqlCardStore, type CardStore, type Querier } from '../card-store';
 import { PRESS_SQL, type Room } from '../press-store';
+import { stateFrom } from '../review';
 import { putTestCards, storedCard } from './review-fixtures';
 
 /**
@@ -15,7 +16,7 @@ import { putTestCards, storedCard } from './review-fixtures';
  * cannot be written at all; and a second standing press on one card cannot be written either.
  */
 
-const SCHEMA = ['001_read_model.sql', '008_factory_cards.sql', '009_factory_presses.sql']
+const SCHEMA = ['001_read_model.sql', '008_factory_cards.sql', '009_factory_presses.sql', '010_press_lapses.sql']
   .map((f) => readFileSync(join(process.cwd(), 'db', f), 'utf8'));
 
 const FOUNDER = 'arca.founder@bruntsfield.capital';
@@ -74,7 +75,7 @@ afterAll(async () => {
 describe('the schema', () => {
   it('loads a second time without changing anything', async () => {
     expect(await press('arca', 'arca', 21, 'accept', FOUNDER, false)).toBe('recorded');
-    await asOwner(() => db.exec(SCHEMA[2]));
+    await asOwner(() => db.exec(SCHEMA[2] + SCHEMA[3]));
     expect(await store.presses('arca', 'arca', 21)).toHaveLength(1);
   });
 
@@ -274,4 +275,79 @@ describe('a tap on Telegram', () => {
 
 it('the statements name no venture except through the scope', () => {
   for (const sql of Object.values(PRESS_SQL)) expect(sql).not.toMatch(/venture_id\s*=\s*\$/);
+});
+
+describe('a press the box never answers (FB-278)', () => {
+  /** Move a press's times back, as the owner: the studio's role may not change when it was pressed. */
+  const age = (id: string, minutes: { pressed: number; collected?: number }) => asOwner(() => db.query(
+    `update factorystore.presses set pressed_at = now() - make_interval(mins => $2),
+            collected_at = case when $3::int is null then null else now() - make_interval(mins => $3::int) end
+      where id = $1`,
+    [id, minutes.pressed, minutes.collected ?? null],
+  ));
+  const only = async () => (await store.presses('arca', 'arca', 21))[0];
+
+  it('still stands for 10 minutes, collected or not', async () => {
+    await press('arca', 'arca', 21, 'approve', JOHN, true);
+    await age((await only()).id, { pressed: 9 });
+    expect(await press('arca', 'arca', 21, 'reject', JOHN, true)).toBe('out-of-date');
+    await age((await only()).id, { pressed: 30, collected: 9 });
+    expect(await press('arca', 'arca', 21, 'reject', JOHN, true)).toBe('out-of-date');
+  });
+
+  it('left uncollected for 10 minutes, it is never handed to the box, and a new press is recorded', async () => {
+    await press('arca', 'arca', 21, 'approve', JOHN, true);
+    const first = await only();
+    await age(first.id, { pressed: 11 });
+    expect((await store.collect(['arca'], ROOM)).presses).toEqual([]);
+
+    expect(await press('arca', 'arca', 21, 'reject', JOHN, true)).toBe('recorded');
+    expect((await store.collect(['arca'], ROOM)).presses.map((p) => p.action)).toEqual(['reject']);
+    const lapsed = await scoped('arca', (q) => q.query<{ lapsed: boolean }>('select lapsed_at is not null as lapsed from factorystore.presses where id = $1', [first.id]));
+    expect(lapsed.rows[0].lapsed).toBe(true);
+  });
+
+  it('collected and unanswered for 10 minutes, a new press is recorded, and a late answer is still kept', async () => {
+    await press('arca', 'arca', 21, 'approve', JOHN, true);
+    const [first] = (await store.collect(['arca'], ROOM)).presses;
+    await age(first.id, { pressed: 30, collected: 11 });
+
+    expect(await press('arca', 'arca', 21, 'try-again', JOHN, true)).toBe('recorded');
+    expect(await store.answer(['arca'], first.id, 'done', 'Made part of ARCA.')).toBe('stored');
+    expect((await store.presses('arca', 'arca', 21)).map((p) => [p.action, p.answer?.outcome ?? null])).toEqual([['approve', 'done'], ['try-again', null]]);
+    // The box did it after all: the card is settled, and nothing more can be pressed.
+    expect(await press('arca', 'arca', 21, 'stop', JOHN, true)).toBe('out-of-date');
+  });
+
+  it('a late "done" on a lapsed press is kept even when the press after it was done too, and the card shows the later', async () => {
+    await press('arca', 'arca', 21, 'approve', JOHN, true);
+    const [first] = (await store.collect(['arca'], ROOM)).presses;
+    await age(first.id, { pressed: 30, collected: 11 });
+    expect(await press('arca', 'arca', 21, 'try-again', JOHN, true)).toBe('recorded');
+    const [second] = (await store.collect(['arca'], ROOM)).presses;
+    expect(await store.answer(['arca'], second.id, 'done', 'Building it again.')).toBe('stored');
+
+    // The box crashed after doing the first, and says so once it is back. What it did is kept.
+    expect(await store.answer(['arca'], first.id, 'done', 'Made part of ARCA.')).toBe('stored');
+    const all = await store.presses('arca', 'arca', 21);
+    expect(all.map((p) => p.answer?.outcome)).toEqual(['done', 'done']);
+    expect(stateFrom(all, Date.now())).toMatchObject({ kind: 'decided', action: 'try-again' });
+    expect(await press('arca', 'arca', 21, 'stop', JOHN, true)).toBe('out-of-date');
+  });
+
+  it('a sign-off never lapses: it is collected however late', async () => {
+    await press('arca', 'arca', 21, 'accept', FOUNDER, false);
+    await age((await only()).id, { pressed: 60 });
+    expect((await store.collect(['arca'], ROOM)).signOffs.map((p) => p.action)).toEqual(['accept']);
+  });
+
+  it('the database still refuses two presses standing at once', async () => {
+    await press('arca', 'arca', 21, 'approve', JOHN, true);
+    await age((await only()).id, { pressed: 11 });
+    // A press the studio did not mark lapsed still counts, so the second wall holds.
+    await expect(scoped('arca', (q) => q.query(
+      "insert into factorystore.presses (venture_id, repo, number, action, by_email, by_john, seen_head_sha) values ('arca', 'arca', 21, 'stop', $1, false, 'sha-arca-21')",
+      [FOUNDER],
+    ))).rejects.toThrow(/presses_one_standing/);
+  });
 });

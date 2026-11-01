@@ -160,6 +160,11 @@ Once a minute. The studio keeps the time from your signed timestamp.
 
 `box` is optional (`planning-box` when left out): lower-case letters, digits and dashes.
 
+**If `planning-box` sends no heartbeat for five minutes** (FB-278), the studio treats its cards as
+out of date. Each card says "The factory hasn't reported since 10:42. These may be out of date.",
+its buttons switch off, and a press made anyway is refused and not kept. The next heartbeat turns
+the buttons back on. A box that has never sent one is not treated as quiet.
+
 ## Presses (FB-276)
 
 A **press** is a button pressed on a card in the studio: `stop`, `send-back`, `accept`, `approve`,
@@ -179,6 +184,13 @@ tap on Telegram, and says what happened.
   answered yet, or answered `done`), the studio refuses any other with "This card is out of date:
   the run isn't waiting at it any more. Nothing was done." A press you answer `out-of-date` or
   `refused` did nothing, so it no longer stands.
+- **A press you don't take, or don't answer, lapses** (FB-278). Collect a press within 10 minutes
+  of when it was pressed, and answer it within 10 minutes of collecting it. Past either, the card
+  says "Nothing was done." and takes a new press. A press left uncollected that long is never handed
+  out: `collect` skips it. A press you collected can still be answered late. Your answer is kept,
+  and the card shows it, because you may have acted on it.
+  If a new press was made after it lapsed and you did that one too, both answers are kept and the
+  card shows the later.
 - **A press is about one version of the work**, the card's `headSha` when it was pressed
   (`seenHeadSha`). When you send a card with a new `headSha`, it starts again with no presses.
 

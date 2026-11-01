@@ -135,6 +135,20 @@ describe('each screen, before anyone presses', () => {
     expect(html).toContain('>accepted<');
   });
 
+  it('the work page: while the factory is quiet, a card\'s buttons are off and the page says why (FB-278)', () => {
+    const html = draw({ look: 'work', off: 'The factory hasn\'t reported since 10:42.' });
+    expect(ids(html)).toEqual(['work-decision', 'work-off', 'work-accept', 'work-sendback-open']);
+    expect(html).toContain('reported since 10:42.');
+    expect(html).toMatch(/data-testid="work-accept"[^>]*disabled/);
+    expect(html).toMatch(/data-testid="work-sendback-open"[^>]*disabled/);
+  });
+
+  it('the Review screen: while the factory is quiet, both buttons are off and the reason is above them (FB-278)', () => {
+    const html = draw({ look: 'review', isJohn: true, off: 'Off for now.' });
+    expect(ids(html)).toEqual(['review-off', 'review-accept', 'review-sendback']);
+    expect(html).toMatch(/data-testid="review-accept"[^>]*disabled/);
+  });
+
   it('the Tickets screen: its own words for the same two buttons', () => {
     const html = draw({ look: 'tickets' });
     expect(ids(html)).toEqual(['detail-approve', 'detail-refuse']);

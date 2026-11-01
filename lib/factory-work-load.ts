@@ -8,6 +8,8 @@ import {
   FACTORY_NAME, FACTORY_REPO, FACTORY_VENTURE, cardRows, namer,
   type CardRow, type LoadedCard, type Viewer,
 } from './factory-work';
+import { factoryQuietLine, isFactoryCard } from './press';
+import { BUTTONS_OFF } from './presses';
 
 /**
  * Reading the factory's cards for the lists a founder already has (FB-277). The rules for what a
@@ -30,9 +32,14 @@ export interface VentureCards {
   cards: LoadedCard[];
   /** True when the store could not be read. The lists then say so rather than show nothing. */
   unread: boolean;
+  /**
+   * "The factory hasn't reported since 10:42. These may be out of date.", when there are cards and
+   * the planning box has been quiet for five minutes (FB-278). Null otherwise.
+   */
+  quiet: string | null;
 }
 
-const NONE: VentureCards = { cards: [], unread: false };
+const NONE: VentureCards = { cards: [], unread: false, quiet: null };
 
 /** The repositories a venture's cards may come from: its own, or cowgate for the factory. */
 function reposOf(ventureId: string): string[] | null {
@@ -54,10 +61,14 @@ export const ventureCards = cache(async (ventureId: string): Promise<VentureCard
   if (!store || !repos) return NONE;
   try {
     const got = await store.newest(ventureId, CARD_LIMIT);
-    return { cards: got.filter((c) => repos.includes(c.card.repo)).map((c) => ({ ventureId, ...c })), unread: false };
+    // The real clock, not `studioNow()`: the press times it is compared with are the real clock's.
+    const readAt = Date.now();
+    const cards = got.filter((c) => repos.includes(c.card.repo)).map((c) => ({ ventureId, readAt, ...c }));
+    const quiet = cards.length ? await factoryQuietLine(store, readAt) : null;
+    return { cards, unread: false, quiet };
   } catch (e) {
     console.error('[cards] could not read', { venture: ventureId, message: (e as Error)?.message });
-    return { cards: [], unread: true };
+    return { cards: [], unread: true, quiet: null };
   }
 });
 
@@ -71,19 +82,36 @@ export function viewerOf(email: string, venture: Pick<VentureSummary, 'founderEm
 }
 
 /** One venture's cards as rows for this viewer, waiting ones first. */
-export async function ventureCardRows(venture: VentureSummary, viewer: Viewer): Promise<{ rows: CardRow[]; cards: LoadedCard[]; unread: boolean }> {
+export async function ventureCardRows(venture: VentureSummary, viewer: Viewer): Promise<{ rows: CardRow[]; cards: LoadedCard[]; unread: boolean; quiet: string | null }> {
   const read = await ventureCards(venture.id);
-  return { rows: cardRows(read.cards, viewer, () => venture.name), cards: read.cards, unread: read.unread };
+  return { rows: cardRows(read.cards, viewer, () => venture.name), cards: read.cards, unread: read.unread, quiet: read.quiet };
 }
 
 /**
  * The factory's own cards, cowgate's, for John's cross-venture pages. Nothing for anyone else: the
  * check is made here, again, so a page that forgot to make it still hands a founder nothing.
  */
-export async function factoryCardsForJohn(viewer: Viewer): Promise<{ rows: CardRow[]; cards: LoadedCard[]; unread: boolean }> {
-  if (!viewer.isJohn) return { rows: [], cards: [], unread: false };
+export async function factoryCardsForJohn(viewer: Viewer): Promise<{ rows: CardRow[]; cards: LoadedCard[]; unread: boolean; quiet: string | null }> {
+  if (!viewer.isJohn) return { rows: [], cards: [], unread: false, quiet: null };
   const read = await ventureCards(FACTORY_VENTURE);
-  return { rows: cardRows(read.cards, viewer, () => FACTORY_NAME), cards: read.cards, unread: read.unread };
+  return { rows: cardRows(read.cards, viewer, () => FACTORY_NAME), cards: read.cards, unread: read.unread, quiet: read.quiet };
+}
+
+/**
+ * Why the work page's buttons are off, when the work is a factory card and the planning box is quiet
+ * (FB-278). Null for any other work, and while the box reports. The press is refused on the server
+ * either way (`pressCard`); this is so the founder is told before pressing, not after.
+ */
+export async function workPageOff(venture: VentureSummary, repo: string, number: number): Promise<string | null> {
+  const store = cardStore();
+  try {
+    if (!store || !(await isFactoryCard(store, venture, repo, number))) return null;
+    const quiet = await factoryQuietLine(store, Date.now());
+    return quiet ? `${quiet} ${BUTTONS_OFF}` : null;
+  } catch (e) {
+    console.error('[cards] could not read', { venture: venture.id, message: (e as Error)?.message });
+    return null;
+  }
 }
 
 /** The message a list shows when the cards could not be read. */

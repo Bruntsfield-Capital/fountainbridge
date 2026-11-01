@@ -168,3 +168,56 @@ describe("the test copy's line file", () => {
     expect(await on21()).toHaveLength(1);
   });
 });
+
+describe('when the factory goes quiet (FB-278)', () => {
+  let clock: number;
+  const at = (iso: string) => { clock = Date.parse(iso); };
+  const pressAt = (who: Presser, action: string) => pressCard({ ...deps, store, now: () => new Date(clock) }, ARCA, who, 'arca', 21, action, { note: 'Shorter.' });
+  const ROOM = { limit: 20, bytes: 60_000, size: () => 1 };
+
+  beforeEach(async () => {
+    at('2026-11-04T09:00:00Z');
+    store = memoryCardStore(() => new Date(clock));
+    await putTestCards(store);
+  });
+
+  it('a box never heard from has not gone quiet: presses are recorded', async () => {
+    expect((await pressAt(JOHN, 'approve')).ok).toBe(true);
+  });
+
+  it('after five minutes of silence nothing is recorded, and the press says why; when it reports again, presses come back', async () => {
+    await store.beat('planning-box', '2026-11-04T08:55:59Z');
+    at('2026-11-04T09:01:00Z');
+    expect(await pressAt(JOHN, 'approve')).toEqual({
+      ok: false,
+      message: "The factory hasn't reported since 08:55, so nothing was recorded. Try again once it is back.",
+    });
+    expect(await pressAt(FOUNDER, 'accept')).toMatchObject({ ok: false });
+    expect(await on21()).toEqual([]);
+    expect(lines()).toEqual([]);
+
+    await store.beat('planning-box', '2026-11-04T09:01:00Z');
+    expect((await pressAt(JOHN, 'approve')).ok).toBe(true);
+  });
+
+  it('a press left uncollected for 10 minutes is never collected, and no longer blocks a new one', async () => {
+    expect((await pressAt(JOHN, 'approve')).ok).toBe(true);
+    at('2026-11-04T09:09:59Z');
+    expect(await pressAt(JOHN, 'reject')).toEqual({ ok: false, message: OUT_OF_DATE });
+    at('2026-11-04T09:10:00Z');
+    expect((await store.collect(['arca'], ROOM)).presses).toEqual([]);
+    expect((await pressAt(JOHN, 'reject')).ok).toBe(true);
+    expect((await store.collect(['arca'], ROOM)).presses.map((p) => p.action)).toEqual(['reject']);
+  });
+
+  it('a press collected and unanswered for 10 minutes no longer blocks a new one; a late answer is kept', async () => {
+    expect((await pressAt(JOHN, 'approve')).ok).toBe(true);
+    at('2026-11-04T09:05:00Z');
+    const [first] = (await store.collect(['arca'], ROOM)).presses;
+    at('2026-11-04T09:14:59Z');
+    expect(await pressAt(JOHN, 'reject')).toEqual({ ok: false, message: OUT_OF_DATE });
+    at('2026-11-04T09:15:00Z');
+    expect((await pressAt(JOHN, 'reject')).ok).toBe(true);
+    expect(await store.answer(['arca'], first.id, 'done', 'Made part of ARCA.')).toBe('stored');
+  });
+});

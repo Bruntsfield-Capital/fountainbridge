@@ -1,6 +1,6 @@
 # FB-278 — When the factory goes quiet
 
-**Status:** Todo · **Kind:** small · **Budget:** $15 · **Rough date:** 7 November 2026 · **Pilot step:** 7 · **Raised by:** John, 28 October 2026 (the factory pilot, `docs/prd/factory-pilot-release.md`) · One ticket = one branch = one PR.
+**Status:** Done · **Kind:** small · **Budget:** $15 · **Rough date:** 7 November 2026 · **Pilot step:** 7 · **Raised by:** John, 28 October 2026 (the factory pilot, `docs/prd/factory-pilot-release.md`) · One ticket = one branch = one PR.
 
 ## Why
 
@@ -27,7 +27,7 @@ when nothing did.
 
 ## Done when
 
-- [ ] Journey 7 in `harness/END-TO-END.md` passes against a test copy.
-- [ ] A press collected and never answered shows "Nothing was done." 10 minutes after it was
+- [x] Journey 7 in `harness/END-TO-END.md` passes against a test copy (`e2e/review.spec.ts`, journey 7).
+- [x] A press collected and never answered shows "Nothing was done." 10 minutes after it was
       collected, its buttons come back, and a late `press-result` from the box replaces it.
-- [ ] Every command in `CLAUDE.md` `## Checks` passes.
+- [x] Every command in `CLAUDE.md` `## Checks` passes.

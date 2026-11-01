@@ -61,6 +61,8 @@ export interface AccessibleNeedsYou {
   sendsUnread: string[];
   /** Venture names whose factory cards could not be read. The count is then a floor too. */
   cardsUnread: string[];
+  /** The line saying the factory has gone quiet, so its cards may be out of date (FB-278). */
+  cardsQuiet: string | null;
 }
 
 export async function loadAccessibleNeedsYou(
@@ -91,7 +93,7 @@ export async function loadAccessibleNeedsYou(
     // FB-277: each venture's cards, read only for the ventures this person passed the check for.
     Promise.all(visible.map((v) => ventureCardRows(v, viewerOf(email, v)).then((c) => ({ venture: v, ...c })))),
     // The factory's own cards: John's alone. `factoryCardsForJohn` checks that again itself.
-    access.isAdmin ? factoryCardsForJohn(viewerOf(email, null)) : Promise.resolve({ rows: [] as CardRow[], unread: false }),
+    access.isAdmin ? factoryCardsForJohn(viewerOf(email, null)) : Promise.resolve({ rows: [] as CardRow[], unread: false, quiet: null }),
   ]);
 
   const sends: WaitingSend[] = [];
@@ -132,5 +134,7 @@ export async function loadAccessibleNeedsYou(
     errors: attention.errors,
     sendsUnread,
     cardsUnread,
+    // One planning box serves every venture, so any read that has cards says whether it is quiet.
+    cardsQuiet: [...cardsByVenture, factory].find((c) => c.quiet)?.quiet ?? null,
   };
 }

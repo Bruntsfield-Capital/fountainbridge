@@ -32,6 +32,7 @@ import { WhileWorking } from './WhileWorking';
 import type { Brief } from '@/lib/brief';
 import type { AgedRun } from '@/lib/runreports';
 import { Mark } from './Mark';
+import { FactoryQuiet } from './FactoryQuiet';
 
 // FB-048: the founder's three owned surfaces. Plain-language gate labels (FB-024) — the founder sees
 // "how work here is approved", never the contract enum.
@@ -129,6 +130,7 @@ export function VentureBoard({
   openWork = {},
   openWorkQueue = [],
   cardItems = [],
+  cardsQuiet = null,
   filedRefs = {},
   unmatchedWork = {},
   viewerIsFounder = false,
@@ -159,6 +161,8 @@ export function VentureBoard({
    * `openWorkQueue`, so one piece of work is one row.
    */
   cardItems?: WaitingItem[];
+  /** The line saying the factory has gone quiet, so its cards may be out of date (FB-278). */
+  cardsQuiet?: string | null;
   /** The venture in a paragraph (FB-042) — composed server-side so the ordering has one owner. */
   brief?: Brief | null;
   /** The desk's one sentence (FB-128). Composed server-side from the same count the banner uses. */
@@ -525,6 +529,7 @@ export function VentureBoard({
             everything waiting →
           </Link>
         </div>
+        <FactoryQuiet line={cardItems.length ? cardsQuiet : null} testId="waiting-cards-quiet" />
         <WaitingQueue items={waitingItems} ventureId={venture.id} />
       </section>
       {/* FB-183: the external-send cards that used to stand here are rows in "Waiting on you" above,

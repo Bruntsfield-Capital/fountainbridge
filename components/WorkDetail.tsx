@@ -172,6 +172,7 @@ export function WorkDetail({
   waitingMs = null,
   previewCheck = null,
   launchCheck = null,
+  off = null,
 }: {
   ventureId: string;
   work: WorkItem;
@@ -186,6 +187,8 @@ export function WorkDetail({
   previewCheck?: PreviewCheck | null;
   /** What opening `launch.url` found (FB-184). Linked only when it opens. */
   launchCheck?: PreviewCheck | null;
+  /** Why the buttons are off: the work is a factory card and the factory is quiet (FB-278). */
+  off?: string | null;
 }) {
   // Decided here from what was rendered, and decided AGAIN server-side against what is current —
   // this one gives the founder a reason, the server one makes a stale accept impossible.
@@ -307,6 +310,7 @@ export function WorkDetail({
         work={work}
         merged={work.merged}
         suggestion={suggestion}
+        off={off}
         blocked={verdict.ok ? null : (
           <p
             data-testid="work-blocked"

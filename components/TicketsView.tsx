@@ -9,6 +9,7 @@ import remarkGfm from 'remark-gfm';
 import { STATUS_LABEL } from '@/lib/glossary';
 import { showAngleBrackets, splitTicketBody, withoutStatusClaim, withoutTitleHeading } from '@/lib/markdown';
 import { toneColor } from '@/lib/status';
+import { FactoryQuiet } from './FactoryQuiet';
 import { howLongMs } from '@/lib/when';
 import { isUnnumbered } from '@/lib/ticket-ids';
 import type { ReactNode } from 'react';
@@ -419,6 +420,7 @@ function Detail({
           pictures and the preview, so this panel points there and draws no control of its own. */}
       {row.card ? (
         <div data-testid="detail-card" data-standing={row.card.standing} style={{ marginTop: '0.25rem' }}>
+          <FactoryQuiet line={row.card.quiet} testId="detail-card-quiet" />
           <p data-testid="detail-card-what" style={{ fontSize: 'var(--fs-body-sm)', margin: '0 0 0.75rem', maxWidth: 'var(--content-narrow)' }}>
             {row.card.sentence}
           </p>
