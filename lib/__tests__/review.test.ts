@@ -55,7 +55,7 @@ describe("a founder's Review screen", () => {
   it('a note John wrote is read through the same lock', () => {
     const view2 = reviewFor(CARD, {
       ...at(false),
-      state: { kind: 'sent-back', by: 'John', at: '2026-07-21T00:00:00Z', note: 'Too slow. What to do next: retry it. Cost $3.', signedOffBy: null, answer: null },
+      state: { kind: 'sent-back', by: 'John', at: '2026-07-21T00:00:00Z', note: 'Too slow. What to do next: retry it. Cost $3.', signedOffBy: null, answer: null, johnMay: false, lastTry: null },
     });
     expect(JSON.stringify(view2)).not.toMatch(/what to do next|\$3/i);
     expect(view2.state.kind === 'sent-back' && view2.state.note).toBe('Too slow.');
@@ -135,7 +135,7 @@ describe("a card's state", () => {
   let n = 0;
   const press = (action: PressAction, by: string, patch: Partial<StoredPress> = {}): StoredPress => ({
     id: `p${++n}`, ventureId: 'arca', repo: 'arca', number: 20, action, by, byJohn: by === 'j@x', source: 'studio', note: '',
-    seenHeadSha: 'sha', pressedAt: `2026-07-21T10:00:0${n % 10}Z`, collectedAt: null, answer: null, ...patch,
+    seenHeadSha: 'sha', followsUp: false, pressedAt: `2026-07-21T10:00:0${n % 10}Z`, collectedAt: null, answer: null, ...patch,
   });
   const said = (outcome: BoxAnswer['outcome'], message = 'Said.'): BoxAnswer => ({ outcome, message, at: '2026-07-21T11:00:00Z' });
   /** A minute after the presses below: none of them has lapsed. */
@@ -166,6 +166,37 @@ describe("a card's state", () => {
   it('the press the factory did wins over a later one it said did nothing', () => {
     const s = stateFrom([press('send-back', 'f@x', { answer: said('done') }), press('approve', 'j@x', { answer: said('out-of-date') })], NOW);
     expect(s).toMatchObject({ kind: 'sent-back', by: 'f@x' });
+  });
+
+  describe("after a founder's Send back, John's Reject or Try again (FB-286)", () => {
+    const sentBack = () => press('send-back', 'f@x', { note: 'Bigger, please.', answer: said('done') });
+
+    it('the card waits on John once the box has done the Send back', () => {
+      expect(stateFrom([sentBack()], NOW)).toMatchObject({ kind: 'sent-back', by: 'f@x', johnMay: true, lastTry: null });
+      expect(stateFrom([press('send-back', 'f@x')], NOW)).toMatchObject({ kind: 'sent-back', johnMay: false });
+      expect(stateFrom([press('send-back', 'j@x', { answer: said('done') })], NOW)).toMatchObject({ kind: 'sent-back', johnMay: false });
+    });
+
+    it("shows John's decision while the box does it, and once it has", () => {
+      const sb = sentBack();
+      expect(stateFrom([sb, press('reject', 'j@x', { followsUp: true })], NOW)).toMatchObject({ kind: 'decided', action: 'reject', by: 'j@x', answer: null });
+      expect(stateFrom([sb, press('try-again', 'j@x', { followsUp: true, answer: said('done', 'Asked to try again.') })], NOW))
+        .toMatchObject({ kind: 'decided', action: 'try-again', answer: { outcome: 'done' } });
+    });
+
+    it('one that did nothing, or lapsed, leaves it sent back, saying what became of it', () => {
+      const sb = sentBack();
+      expect(stateFrom([sb, press('reject', 'j@x', { followsUp: true, answer: said('refused', 'Something went wrong.') })], NOW))
+        .toMatchObject({ kind: 'sent-back', johnMay: true, lastTry: 'Something went wrong.' });
+      const lapsed = press('reject', 'j@x', { followsUp: true, pressedAt: '2026-07-21T10:00:00Z' });
+      expect(stateFrom([sb, lapsed], NOW + LAPSE_MS)).toMatchObject({ kind: 'sent-back', johnMay: true, lastTry: NOT_COLLECTED });
+    });
+
+    it('what became of it is never shown to the founder', () => {
+      const state = stateFrom([sentBack(), press('reject', 'j@x', { followsUp: true, answer: said('refused', 'Something went wrong.') })], NOW);
+      expect(reviewFor(CARD, { ...at(false), state }).state).toMatchObject({ kind: 'sent-back', lastTry: null });
+      expect(reviewFor(CARD, { ...at(true), state }).state).toMatchObject({ kind: 'sent-back', lastTry: 'Something went wrong.' });
+    });
   });
 
   it('a press the factory said did nothing still shows, with what it said', () => {

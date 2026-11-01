@@ -284,6 +284,60 @@ test.describe('journey 5: a press reported from Telegram also shows here', () =>
   });
 });
 
+test.describe("after a founder's Send back, John keeps Reject and Try again (FB-286)", () => {
+  test.beforeAll(async ({ browser }, info) => {
+    await putReviewCards(browser, String(info.project.use.baseURL));
+    await drain(standIn);
+  });
+
+  test("John sees his two buttons, the founder sees none; John's Try again is collected; the founder's presses are out of date", async ({ page, browser }) => {
+    // The founder sends #21 back, and the stand-in does it, as the box does.
+    await testLogin(page, FOUNDER);
+    expect(await callPressDoor(page, ['arca', 'arca', 21, 'send-back', 'Bigger, please. The price is hard to read.', null])).toContain('Sent back with your notes');
+    const sent = await collect(standIn);
+    expect(sent.presses).toEqual([expect.objectContaining({ number: 21, action: 'send-back', by: FOUNDER, byJohn: false })]);
+    expect((await answerPress(standIn, sent.presses[0].id, 'done', 'Sent back to John with your note. He passes it on to the factory.')).status()).toBe(200);
+
+    // The founder: sent back, nothing to press.
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto('/venture/arca/review/arca/21');
+    await expect(page.getByTestId('review-state')).toHaveText('Sent back');
+    await expect(page.getByTestId('review-try-again')).toHaveCount(0);
+    await expect(page.getByTestId('review-reject')).toHaveCount(0);
+    await page.screenshot({ path: `${SHOTS}/86-sent-back-founder-computer.png`, fullPage: true });
+    await page.setViewportSize({ width: 393, height: 851 });
+    await page.reload();
+    await page.screenshot({ path: `${SHOTS}/86-sent-back-founder-phone.png`, fullPage: true });
+
+    // John: sent back, his decision, with the founder's note and his two buttons.
+    const john = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    await testLogin(john, JOHN);
+    await john.goto('/venture/arca/review/arca/21');
+    await expect(john.getByTestId('review-state')).toHaveText('Sent back · your decision');
+    await expect(john.getByTestId('review-sent-note')).toContainText('The price is hard to read.');
+    await expect(john.getByTestId('review-try-again')).toBeEnabled();
+    await expect(john.getByTestId('review-reject')).toBeEnabled();
+    await john.screenshot({ path: `${SHOTS}/86-sent-back-john-computer.png`, fullPage: true });
+    await john.setViewportSize({ width: 393, height: 851 });
+    await john.reload();
+    await john.screenshot({ path: `${SHOTS}/86-sent-back-john-phone.png`, fullPage: true });
+
+    await john.getByTestId('review-try-again').click();
+    await expect(john.getByTestId('review-state')).toHaveText('Sent to try again · waiting for the factory');
+    await expect(john.getByTestId('review-try-again')).toHaveCount(0);
+    await john.screenshot({ path: `${SHOTS}/86-try-again-john-phone.png`, fullPage: true });
+
+    // The stand-in collects one press: John's Try again.
+    const got = await collect(standIn);
+    expect(got.presses).toEqual([expect.objectContaining({ number: 21, action: 'try-again', by: JOHN, byJohn: true })]);
+
+    // Nothing more is taken on the card, from the founder or from John.
+    expect(await callPressDoor(page, ['arca', 'arca', 21, 'stop', '', null])).toContain(OUT_OF_DATE);
+    expect(await callPressDoor(john, ['arca', 'arca', 21, 'reject', '', null])).toContain(OUT_OF_DATE);
+    await john.close();
+  });
+});
+
 test.describe("journey 6: founder A can't press founder B's work", () => {
   test.beforeAll(async ({ browser }, info) => {
     rmSync(PRESSES, { force: true });
