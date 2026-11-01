@@ -19,3 +19,7 @@ agent: an issue that needs one is held for a human.
 it merges on John's Approve: that merge is his word, so its pull request may say "Closes #N".
 Nothing else closes an issue. When the factory finds an issue needs no work, is blocked, or
 repeats another, it says so on the issue and labels it, and leaves it open for John.
+
+**A pull request brings its own ticket up to date.** When the factory's pull request delivers a
+ticket, the same pull request sets that ticket's **Status** to done and ticks what it proved, in the
+ticket's file. A ticket is never left saying "Todo" or "In progress" after its work merges.
