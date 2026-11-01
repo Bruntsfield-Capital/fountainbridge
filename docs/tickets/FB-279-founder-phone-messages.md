@@ -59,4 +59,7 @@ example the same Google Workspace sending the website uses), set up by John.
   arrives as an email instead.
 - [x] A test proves a founder never gets a message about another venture.
 - [x] A founder can switch the messages off.
-- [x] Every command in `CLAUDE.md` `## Checks` passes.
+- [ ] Every command in `CLAUDE.md` `## Checks` passes. On the planning box, every command but two
+  passed. `test:e2e` and `test:e2e:degraded` failed there on the Memory page and the phone pocket,
+  because Chromium on that box closes pages; the same tests fail the same way on `main` before this
+  work. CI, which runs both, decides this box.
