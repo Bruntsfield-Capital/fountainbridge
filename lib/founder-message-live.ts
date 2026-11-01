@@ -2,7 +2,7 @@ import 'server-only';
 import { studioDatabase, withVenture } from './db';
 import type { StoredCard } from './card-store';
 import type { Querier } from './push-store';
-import { founderAddress } from './authz';
+import { founderAddress, isFounder } from './authz';
 import type { VentureSummary } from './ventures';
 import { vapidFromEnv } from './webpush';
 import { mailFromEnv, whyNoMail } from './mail';
@@ -43,7 +43,7 @@ export type MessagesLine = { off: boolean; email: string; byEmail: boolean } | {
  */
 export async function founderMessagesLine(venture: Pick<VentureSummary, 'id' | 'founderEmail'>, viewerEmail: string, env: Env = process.env): Promise<MessagesLine | null> {
   const founder = founderAddress(venture);
-  if (!founder || founder !== viewerEmail.trim().toLowerCase()) return null;
+  if (!founder || !isFounder(venture, viewerEmail)) return null;
   if (!studioDatabase(env)) return null;
   const byEmail = mailFromEnv(env) !== null;
   if (!byEmail && !vapidFromEnv(env)) return null;

@@ -28,6 +28,12 @@ export function founderAddress(venture: Pick<VentureRef, 'founderEmail'>): strin
   return venture.founderEmail?.trim().toLowerCase() || null;
 }
 
+/** Whether this signed-in address is the venture's founder. */
+export function isFounder(venture: Pick<VentureRef, 'founderEmail'>, email: string | null | undefined): boolean {
+  const founder = founderAddress(venture);
+  return founder !== null && founder === email?.trim().toLowerCase();
+}
+
 /**
  * Resolve which ventures an authenticated email may access.
  * @param email the signed-in Google identity (null when signed out)
