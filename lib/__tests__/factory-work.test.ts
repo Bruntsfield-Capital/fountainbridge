@@ -32,7 +32,7 @@ function press(action: StoredPress['action'], by: string, patch: Partial<StoredP
   seq += 1;
   return {
     id: `p${seq}`, ventureId: 'arca', repo: 'arca', number: 21, action, by, byJohn: by === JOHN, source: 'studio',
-    note: '', seenHeadSha: 'sha-arca-21', pressedAt: `2026-07-21T10:0${seq % 10}:00.000Z`, collectedAt: null, answer: null, ...patch,
+    note: '', seenHeadSha: 'sha-arca-21', followsUp: false, pressedAt: `2026-07-21T10:0${seq % 10}:00.000Z`, collectedAt: null, answer: null, ...patch,
   };
 }
 

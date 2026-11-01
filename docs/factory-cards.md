@@ -184,6 +184,11 @@ tap on Telegram, and says what happened.
   answered yet, or answered `done`), the studio refuses any other with "This card is out of date:
   the run isn't waiting at it any more. Nothing was done." A press you answer `out-of-date` or
   `refused` did nothing, so it no longer stands.
+- **After a founder's Send back, John keeps Reject and Try again** (FB-286). Once you have answered a
+  founder's `send-back` with `done`, the studio still takes one `reject` or `try-again` from John on
+  that card, and nothing else. It comes in `presses` like any other. Do it as you do the same tap on
+  Telegram after a Send back (cowgate CG-0070), and answer it. Once it stands, the card takes no
+  more presses.
 - **A press you don't take, or don't answer, lapses** (FB-278). Collect a press within 10 minutes
   of when it was pressed, and answer it within 10 minutes of collecting it. Past either, the card
   says "Nothing was done." and takes a new press. A press left uncollected that long is never handed

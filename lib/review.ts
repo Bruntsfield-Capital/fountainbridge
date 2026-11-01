@@ -14,7 +14,7 @@
  */
 
 import type { PreviewCheck } from './result-link';
-import { NOT_ANSWERED, NOT_COLLECTED, hasLapsed, lapsesAt, settles, type BoxAnswer, type StoredPress } from './presses';
+import { NOT_ANSWERED, NOT_COLLECTED, awaitsFollowUp, hasLapsed, lapsesAt, settles, type BoxAnswer, type StoredPress } from './presses';
 
 /** The four pictures: before and after the change, at a computer's size and a phone's. */
 export const PICTURES = ['before-computer', 'after-computer', 'before-phone', 'after-phone'] as const;
@@ -78,7 +78,11 @@ export interface LapsedPress {
 export type CardState =
   | { kind: 'finished'; lapsed?: LapsedPress }
   | { kind: 'signed-off'; by: string; at: string; note: string; lapsed?: LapsedPress }
-  | { kind: 'sent-back'; by: string; at: string; note: string; signedOffBy: string | null; answer: BoxAnswer | null }
+  /**
+   * `johnMay`: a founder sent it back and the box did it, so John may still Reject or Try again
+   * (FB-286). `lastTry`: what became of his last one, when it did nothing or lapsed.
+   */
+  | { kind: 'sent-back'; by: string; at: string; note: string; signedOffBy: string | null; answer: BoxAnswer | null; johnMay: boolean; lastTry: string | null }
   | { kind: 'approved'; by: string; at: string; signedOffBy: string | null; answer: BoxAnswer | null }
   /** John's other presses: Stop (a founder's too), Reject, Try again, Split it. From here or from Telegram. */
   | { kind: 'decided'; action: 'stop' | 'reject' | 'try-again' | 'split'; by: string; at: string; note: string; signedOffBy: string | null; answer: BoxAnswer | null };
@@ -95,6 +99,10 @@ export type CardState =
  * `done` can leave two presses the box did, the lapsed one and the one pressed after it: the card
  * shows the later, which is the newer decision.
  *
+ * After a founder's Send back the box did, John's Reject or Try again follows it up (FB-286). While
+ * it stands, unanswered, it is the card's state; once the box says it did nothing, or it lapses, the
+ * card is sent back again, with what became of it.
+ *
  * `name` turns the address that pressed into what this viewer reads: "you", "John", the founder's
  * name. Done here, on the server, so no address reaches a screen that does not need it. A tap on
  * Telegram says so.
@@ -103,7 +111,8 @@ export function stateFrom(presses: StoredPress[], now: number, name: (email: str
   const settling = presses.filter((p) => settles(p.action));
   const latest = settling[settling.length - 1] ?? null;
   const done = settling.filter((p) => p.answer?.outcome === 'done');
-  const chosen = done[done.length - 1] ?? (latest && !hasLapsed(latest, now) ? latest : null);
+  const waitingFollowUp = latest?.followsUp && latest.answer === null && !hasLapsed(latest, now) ? latest : null;
+  const chosen = waitingFollowUp ?? done[done.length - 1] ?? (latest && !hasLapsed(latest, now) ? latest : null);
   const signOffs = presses.filter((p) => p.action === 'accept' && (!chosen || p.pressedAt <= chosen.pressedAt));
   const signOff = signOffs[signOffs.length - 1] ?? null;
   const who = (p: StoredPress) => (p.source === 'telegram' ? `${name(p.by)} on Telegram` : name(p.by));
@@ -119,7 +128,11 @@ export function stateFrom(presses: StoredPress[], now: number, name: (email: str
     return signOff ? { kind: 'signed-off', by: who(signOff), at: signOff.pressedAt, note: signOff.note, ...waiting } : { kind: 'finished', ...waiting };
   }
   const base = { by: who(chosen), at: chosen.pressedAt, signedOffBy: signOff ? who(signOff) : null, answer: chosen.answer };
-  if (chosen.action === 'send-back') return { kind: 'sent-back', ...base, note: chosen.note };
+  if (chosen.action === 'send-back') {
+    const tried = latest && latest.followsUp && latest !== chosen ? latest : null;
+    const lastTry = !tried ? null : tried.answer ? tried.answer.message : tried.collectedAt ? NOT_ANSWERED : NOT_COLLECTED;
+    return { kind: 'sent-back', ...base, note: chosen.note, johnMay: awaitsFollowUp(chosen), lastTry };
+  }
   if (chosen.action === 'approve') return { kind: 'approved', ...base };
   return { kind: 'decided', action: chosen.action as 'stop' | 'reject' | 'try-again' | 'split', ...base, note: chosen.note };
 }
@@ -266,10 +279,11 @@ export function reviewFor(
 
 /**
  * A note written by John, or the box's answer, shown to a founder goes through the same lock as
- * everything else.
+ * everything else. What became of John's own Reject or Try again (FB-286) is his alone.
  */
 function founderSafeState(state: CardState): CardState {
-  const out = 'note' in state ? { ...state, note: founderSafe(state.note) } : state;
+  const mine = state.kind === 'sent-back' ? { ...state, lastTry: null } : state;
+  const out = 'note' in mine ? { ...mine, note: founderSafe(mine.note) } : mine;
   return 'answer' in out && out.answer ? { ...out, answer: { ...out.answer, message: founderSafe(out.answer.message) } } : out;
 }
 

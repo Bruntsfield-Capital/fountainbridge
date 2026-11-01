@@ -22,7 +22,7 @@ const { ReviewScreen } = await import('@/components/ReviewScreen');
 const CARD = toReviewCard(withPictures(storedCard('arca', 21)));
 const APPROVE: StoredPress = {
   id: 'p1', ventureId: 'arca', repo: 'arca', number: 21, action: 'approve', by: 'j@x', byJohn: true, source: 'studio',
-  note: '', seenHeadSha: CARD.headSha, pressedAt: '2026-07-21T10:00:00Z', collectedAt: '2026-07-21T10:01:00Z', answer: null,
+  note: '', seenHeadSha: CARD.headSha, followsUp: false, pressedAt: '2026-07-21T10:00:00Z', collectedAt: '2026-07-21T10:01:00Z', answer: null,
 };
 
 const draw = (now: number) => renderToStaticMarkup(React.createElement(ReviewScreen, {

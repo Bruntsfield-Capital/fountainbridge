@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
-  LAPSE_MS, hasLapsed, stands,
+  LAPSE_MS, hasLapsed, placeFor, stands,
   type NewPress, type Outcome, type PressAction, type PressKept, type StoredPress, type TelegramPress,
 } from './presses';
 
@@ -67,19 +67,19 @@ interface Querier {
 }
 
 const COLUMNS = `id, venture_id, repo, number, action, by_email, by_john, source, note, seen_head_sha,
-                 pressed_at, collected_at, outcome, message, answered_at`;
+                 follows_up, pressed_at, collected_at, outcome, message, answered_at`;
 
 export const PRESS_SQL = {
   // Locked until the transaction ends, so a second press on this card waits here for the first.
   lockCard: 'select head_sha from factorystore.cards where repo = $1 and number = $2 for update',
   // `stands` in lib/presses.ts, in SQL: a settling press the box did, or one it has not answered
-  // and that has not lapsed (FB-278, `LAPSE_MS`).
-  standing: `select 1 from factorystore.presses
+  // and that has not lapsed (FB-278, `LAPSE_MS`). Each, so `placeFor` can tell whether the new press
+  // may follow a founder's Send back up (FB-286).
+  standing: `select action, by_john, follows_up, outcome from factorystore.presses
               where repo = $1 and number = $2 and seen_head_sha = $3 and action <> 'accept'
                 and (outcome = 'done'
                      or (outcome is null and lapsed_at is null
-                         and coalesce(collected_at, pressed_at) > now() - make_interval(secs => $4)))
-              limit 1`,
+                         and coalesce(collected_at, pressed_at) > now() - make_interval(secs => $4)))`,
   // Run just before a new press is written, once `standing` found none: any unanswered press left on
   // the card has lapsed. Marked so `presses_one_standing` no longer counts it. Not an answer: the
   // box's answer may still come, and the card shows it.
@@ -91,8 +91,8 @@ export const PRESS_SQL = {
                limit 1`,
   // `on conflict do nothing`: if the unique indexes catch what the checks above did not, nothing
   // comes back, and the press is out of date.
-  insert: `insert into factorystore.presses (venture_id, repo, number, action, by_email, by_john, note, seen_head_sha)
-           values (current_setting('app.venture_id', true), $1, $2, $3, $4, $5, $6, $7)
+  insert: `insert into factorystore.presses (venture_id, repo, number, action, by_email, by_john, note, seen_head_sha, follows_up)
+           values (current_setting('app.venture_id', true), $1, $2, $3, $4, $5, $6, $7, $8)
            on conflict do nothing
            returning id`,
   presses: `select ${COLUMNS} from factorystore.presses
@@ -148,6 +148,7 @@ export function pressFromRow(r: Record<string, unknown>): StoredPress {
     source: r.source === 'telegram' ? 'telegram' : 'studio',
     note: String(r.note ?? ''),
     seenHeadSha: String(r.seen_head_sha ?? ''),
+    followsUp: Boolean(r.follows_up),
     pressedAt: iso(r.pressed_at),
     collectedAt: r.collected_at ? iso(r.collected_at) : null,
     answer: r.outcome ? { outcome: r.outcome as Outcome, message: String(r.message ?? ''), at: iso(r.answered_at) } : null,
@@ -200,12 +201,17 @@ export function sqlPressStore(run: { asVenture<T>(ventureId: string, fn: (q: Que
         const card = (await q.query<{ head_sha: string }>(PRESS_SQL.lockCard, [p.repo, p.number])).rows[0];
         if (!card) return 'no-card';
         const head = String(card.head_sha ?? '');
-        // A settled card takes no more presses, a sign-off included.
-        if ((await q.query(PRESS_SQL.standing, [p.repo, p.number, head, LAPSE_SECONDS])).rows.length) return 'out-of-date';
+        // A settled card takes no more presses, a sign-off included, but for John's follow-up of a
+        // founder's Send back (FB-286).
+        const standing = (await q.query<{ action: string; by_john: boolean; follows_up: boolean; outcome: string | null }>(
+          PRESS_SQL.standing, [p.repo, p.number, head, LAPSE_SECONDS])).rows
+          .map((r) => ({ action: r.action as PressAction, byJohn: r.by_john, followsUp: r.follows_up, answer: r.outcome ? { outcome: r.outcome as Outcome, message: '', at: '' } : null }));
+        const place = p.action === 'accept' ? (standing.length ? null : 'first') : placeFor(standing, p);
+        if (!place) return 'out-of-date';
         if (p.seenHeadSha !== null && p.seenHeadSha !== head) return 'changed';
         if (p.action === 'accept' && (await q.query(PRESS_SQL.signedOff, [p.repo, p.number, head, p.by])).rows.length) return 'already-signed-off';
         await q.query(PRESS_SQL.lapse, [p.repo, p.number, head]);
-        const { rows } = await q.query(PRESS_SQL.insert, [p.repo, p.number, p.action, p.by, p.byJohn, p.note, head]);
+        const { rows } = await q.query(PRESS_SQL.insert, [p.repo, p.number, p.action, p.by, p.byJohn, p.note, head, place === 'follow-up']);
         if (rows.length) return 'recorded';
         return p.action === 'accept' ? 'already-signed-off' : 'out-of-date';
       }),
@@ -275,12 +281,15 @@ export function memoryPressStore(headOf: (ventureId: string, repo: string, numbe
       const head = headOf(v, p.repo, p.number);
       if (head === null) return 'no-card';
       const here = onCard(v, p.repo, p.number, head);
-      if (here.some((x) => stands(x, now().getTime()))) return 'out-of-date';
+      const standing = here.filter((x) => stands(x, now().getTime()));
+      const place = p.action === 'accept' ? (standing.length ? null : 'first') : placeFor(standing, p);
+      if (!place) return 'out-of-date';
       if (p.seenHeadSha !== null && p.seenHeadSha !== head) return 'changed';
       if (p.action === 'accept' && here.some((x) => x.action === 'accept' && x.by === p.by)) return 'already-signed-off';
       all.push({
         id: randomUUID(), ventureId: v, repo: p.repo, number: p.number, action: p.action, by: p.by, byJohn: p.byJohn,
-        source: 'studio', note: p.note, seenHeadSha: head, pressedAt: now().toISOString(), collectedAt: null, answer: null,
+        source: 'studio', note: p.note, seenHeadSha: head, followsUp: place === 'follow-up', pressedAt: now().toISOString(),
+        collectedAt: null, answer: null,
       });
       return 'recorded';
     },
@@ -318,7 +327,7 @@ export function memoryPressStore(headOf: (ventureId: string, repo: string, numbe
       const at = now().toISOString();
       all.push({
         id: randomUUID(), ventureId: v, repo: t.repo, number: t.number, action: t.action, by: t.by, byJohn: true,
-        source: 'telegram', note: '', seenHeadSha: head, pressedAt: t.at, collectedAt: at,
+        source: 'telegram', note: '', seenHeadSha: head, followsUp: false, pressedAt: t.at, collectedAt: at,
         answer: { outcome: t.outcome, message: t.message, at },
       });
       return 'stored';
