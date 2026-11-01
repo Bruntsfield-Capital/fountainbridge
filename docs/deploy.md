@@ -85,6 +85,10 @@ wrapper, or it reports a false "CLI too old" error.
 | `GITHUB_ORG` | `wealthcx01` (default; set if different) |
 | `FOUNDRY_APPROVAL_SECRET` | **FB-046/044 external-action gate:** the HMAC secret the studio uses to sign approval grants **and to verify them on read**. Absent, the studio cannot check any approval: every approval card renders a warning saying so, and (because the executor may still hold a working secret) an approved action can still go out. Must be **identical** to the value on each venture's gated executor, and must **never** be set on a lane box. `openssl rand -hex 32`. |
 | `STUDIO_APPROVAL_GITHUB_TOKEN` | **FB-046:** a write-scoped token for the venture's `foundry-approvals` ref (the read App/PAT stays read-only). Absent → the Approve button reports "approvals not set up yet". |
+| `FACTORY_DOOR_SECRET` | **FB-275:** the key the factory's planning box signs its cards with. Absent, the door answers `404` to everything. `docs/factory-cards.md` has the detail. |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | **FB-141:** the keys for phone notifications. Absent, the studio sends no notifications. |
+| `STUDIO_PUBLIC_URL` | the studio's own https address. The links in a founder's emails start with it (`AUTH_URL` is used if it is missing). |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | **FB-279, production only:** the Google Workspace email settings, so a founder whose phone did not take a notification gets an email instead. Absent, no email is sent and the log says so. Staging must never have them. |
 
 Use **one** of the two GitHub auth paths: a `GITHUB_TOKEN` PAT, or the three `GITHUB_APP_*` vars.
 App installation tokens expire hourly, so a GitHub App must go through the `GITHUB_APP_*` path (a

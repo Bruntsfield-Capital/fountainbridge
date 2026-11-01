@@ -56,6 +56,19 @@ export default defineRailway(() => {
       // studio role's password. Names only; the values live in Railway.
       SCHEMA_ADMIN_URL: preserve(),
       STUDIO_DB_PASSWORD: preserve(),
+      // The factory door's key (FB-275), the phone notification keys (FB-141), and the studio's own
+      // address and email settings (FB-279). A founder's messages about their team's work need all of
+      // them, and without them the studio sends nothing and only says so in its log.
+      FACTORY_DOOR_SECRET: preserve(),
+      VAPID_PUBLIC_KEY: preserve(),
+      VAPID_PRIVATE_KEY: preserve(),
+      VAPID_SUBJECT: preserve(),
+      STUDIO_PUBLIC_URL: preserve(),
+      SMTP_HOST: preserve(),
+      SMTP_PORT: preserve(),
+      SMTP_USER: preserve(),
+      SMTP_PASS: preserve(),
+      SMTP_FROM: preserve(),
     },
     build: {
       builder: 'NIXPACKS',
