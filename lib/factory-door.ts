@@ -66,6 +66,8 @@ export interface DoorDeps {
   log: (line: string) => void;
   /** Whose a tap on Telegram is: John's address, the first in `STUDIO_ADMIN_EMAILS`. */
   john: string;
+  /** Told of every card kept, after it is kept: how its founder hears about it (FB-279). */
+  onCard?: (ventureId: string, card: StoredCard) => void;
 }
 
 export interface DoorReply {
@@ -210,7 +212,7 @@ async function card(deps: DoorDeps, store: CardStore, ventureId: string, repo: s
   if (read.previewUrl !== null && !isPreviewAddress(read.previewUrl)) {
     return refuse(deps, 422, '`previewUrl` is not a preview address the studio can check. Nothing was kept.');
   }
-  const kept = await store.putCard(ventureId, {
+  const stored: StoredCard = {
     repo,
     number: m.number as number,
     runId: read.runId,
@@ -220,11 +222,12 @@ async function card(deps: DoorDeps, store: CardStore, ventureId: string, repo: s
     previewUrl: read.previewUrl,
     plain: read.plain,
     forJohn: read.forJohn,
-  });
+  };
+  const kept = await store.putCard(ventureId, stored);
   deps.log(`card ${repo}#${m.number} ${kept}`);
-  return kept === 'stored'
-    ? say(200, 'Card kept.', true)
-    : say(409, 'A newer version of this card is already here, so this one was not kept.');
+  if (kept !== 'stored') return say(409, 'A newer version of this card is already here, so this one was not kept.');
+  deps.onCard?.(ventureId, stored);
+  return say(200, 'Card kept.', true);
 }
 
 /**

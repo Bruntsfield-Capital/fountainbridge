@@ -58,6 +58,10 @@ self.addEventListener('fetch', (event) => {
  * The server decides when; this only shows what it was sent. The words come from `pushMessage` and
  * say which venture and how many, never what — a lock screen is read by whoever holds the phone.
  * The tag means a second buzz for the same venture replaces the first instead of stacking.
+ *
+ * Since FB-279 the server also sends the founder one message when their team's work is finished,
+ * stuck or sent back (`cardMessage` in lib/founder-message.ts). It carries the same tag, so it
+ * replaces the blocker buzz rather than stacking beside it.
  */
 self.addEventListener('push', (event) => {
   let data = {};

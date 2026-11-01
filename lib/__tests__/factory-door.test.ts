@@ -232,6 +232,28 @@ describe('a card', () => {
   });
 });
 
+describe('the founder hears of a card once it is kept (FB-279)', () => {
+  it('a kept card is passed on once, under the venture its repository belongs to', async () => {
+    const onCard = vi.fn();
+    const { deps, store } = setUp({ onCard });
+    expect(status(await send(deps, card()))).toBe(200);
+    expect(onCard).toHaveBeenCalledTimes(1);
+    expect(onCard.mock.calls[0][0]).toBe('arca');
+    expect(onCard.mock.calls[0][1]).toEqual(await store.card('arca', 'arca', 21).then((c) => { const { pictures: _, ...rest } = c!; return rest; }));
+  });
+
+  it('an older card, a refused card, and a studio with nowhere to keep cards pass nothing on', async () => {
+    const onCard = vi.fn();
+    const { deps } = setUp({ onCard });
+    await send(deps, card());
+    onCard.mockClear();
+    expect(status(await send(deps, card({ sentAt: '2026-11-04T08:00:00Z' })))).toBe(409);
+    expect(status(await send(deps, card({ title: '' })))).toBe(400);
+    expect(status(await send(setUp({ onCard, store: null }).deps, card()))).toBe(503);
+    expect(onCard).not.toHaveBeenCalled();
+  });
+});
+
 describe('a picture', () => {
   const shot = (patch: Record<string, unknown> = {}) => ({
     kind: 'screenshot', repo: 'arca', number: 21, name: 'after-phone', headSha: 'sha-arca-21', takenAt: '2026-11-04T08:59:00Z', png: png(393, 851), ...patch,

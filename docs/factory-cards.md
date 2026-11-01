@@ -108,6 +108,14 @@ the studio reads from GitHub are the same work (same repository and number, or t
 the same repository), only the card's row is shown, and it is counted once. A founder reads only
 the plain parts; John also reads `forJohn.cost` and `forJohn.nextStep` on the rows.
 
+**The founder's message (FB-279).** A `finished`, `stuck` or `sent-back` card of a venture's sends
+that venture's founder one short message, after the card has been kept and the box answered. It goes
+as a notification to the phones the founder turned them on from, or, if none of those took it, as
+an email to the founder's sign-in address. Never both. One message per version of the card: the same
+repository, number, state and `plain.headSha` sent again sends nothing more. The message names the
+venture and what happened, never the card's title, and carries nothing from `forJohn`. Cowgate's
+cards never message anybody, and a founder can stop these messages from the foot of "Needs you".
+
 **Plain parts** (founder-safe, by name): `ref` (up to 40 characters), `title` (needed, up to 300),
 `finishedAt`, `headSha` (the commit the work and its pictures are of), `demo` (true for made-up
 cards), `summary` (up to 4,000), `changes` (up to 30 of `{ label, text }`), `reaches` (up to 500),
