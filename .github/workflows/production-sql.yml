@@ -1,0 +1,50 @@
+name: Production SQL
+
+# FB-287: a pull request that adds or changes a file in db/ cannot merge until John has run that
+# SQL on production and added the label production-sql-run. Only John's label counts, and a later
+# push that changes the db/ files takes the label off. The rules: scripts/production-sql-lib.mjs.
+#
+# It is its own workflow, not a job in ci.yml, because it must also run when a label is added or
+# taken off, and ci.yml cancels its own runs on a new event. It runs on every pull request, with no
+# path filter, so that as a required check it is never left waiting on a pull request that doesn't
+# touch db/.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+# Not cancelled: a push's run must finish taking the label off before a later run reads it.
+concurrency:
+  group: production-sql-${{ github.event.pull_request.number }}
+
+permissions:
+  contents: read
+  pull-requests: read
+  # To take the label off after a push that changes db/.
+  issues: write
+
+jobs:
+  production-sql:
+    name: Production SQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The check is taken from main, never from the pull request, so a pull request cannot change
+      # the rules it is checked by.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+      # Only for the pull request that adds the check (FB-287 itself): main has no copy yet.
+      - name: Use this pull request's copy while main has none
+        if: hashFiles('scripts/production-sql-check.mjs') == ''
+        run: |
+          git fetch --depth=1 origin ${{ github.event.pull_request.head.sha }}
+          git checkout FETCH_HEAD -- scripts/production-sql-check.mjs scripts/production-sql-lib.mjs
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Production SQL
+        run: node scripts/production-sql-check.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
