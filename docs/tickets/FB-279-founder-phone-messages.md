@@ -43,7 +43,7 @@ example the same Google Workspace sending the website uses), set up by John.
 
 ## Before it works on production
 
-- **Load `db/011_founder_messages.sql` on production's database.** Production's schema is kept by
+- **Load `db/014_founder_messages.sql` on production's database.** Production's schema is kept by
   hand on Supabase, so nothing loads it there on its own (staging and previews load it before they
   deploy). Until it is loaded, no card message is sent, and each card writes one line in the log
   saying why.

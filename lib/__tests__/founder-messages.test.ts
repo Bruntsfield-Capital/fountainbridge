@@ -16,7 +16,7 @@ import { storedCard } from './review-fixtures';
  * A founder hears once about their team's work (FB-279), against real Postgres under the studio's
  * own role, as `push-store.test.ts` does. Pushes go to a spy, and email to a spy: nothing leaves.
  */
-const SQL = ['001_read_model.sql', '005_push.sql', '011_founder_messages.sql']
+const SQL = ['001_read_model.sql', '005_push.sql', '012_schema_record.sql', '014_founder_messages.sql']
   .map((f) => readFileSync(join(process.cwd(), 'db', f), 'utf8')).join('\n');
 
 const ARCA = { id: 'arca', name: 'ARCA', founderEmail: 'Arca.Founder@bruntsfield.capital' };

@@ -74,3 +74,6 @@ create policy messages_off_scoped on pushstore.messages_off
 grant usage on schema pushstore to foundry_studio;
 grant select, insert, update on pushstore.card_messages to foundry_studio;
 grant select, insert, delete on pushstore.messages_off to foundry_studio;
+
+-- Recorded, so a deploy can tell production has this file (FB-287).
+insert into foundry_meta.schema_files (name) values ('014_founder_messages.sql') on conflict (name) do nothing;

@@ -17,7 +17,7 @@ export interface MessageKey {
   headSha: string;
 }
 
-/** Every value a claim's `outcome` can hold; `db/011_founder_messages.sql` checks the same list. */
+/** Every value a claim's `outcome` can hold; `db/014_founder_messages.sql` checks the same list. */
 export const CLAIM_OUTCOMES = ['pending', 'off', 'notification', 'email', 'none'] as const;
 export type ClaimOutcome = (typeof CLAIM_OUTCOMES)[number];
 /** What happened to a claimed message, once it is known. */

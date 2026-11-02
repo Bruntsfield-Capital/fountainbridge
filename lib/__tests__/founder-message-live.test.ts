@@ -11,7 +11,7 @@ import { fakeSmtp, type FakeSmtp } from './fake-smtp';
  * environment, the venture it picks, and the database scope it runs in. Real Postgres under the
  * studio's own role, and a mail server on this machine that sends nothing.
  */
-const SQL = ['001_read_model.sql', '005_push.sql', '011_founder_messages.sql']
+const SQL = ['001_read_model.sql', '005_push.sql', '012_schema_record.sql', '014_founder_messages.sql']
   .map((f) => readFileSync(join(process.cwd(), 'db', f), 'utf8')).join('\n');
 
 let db: PGlite;
