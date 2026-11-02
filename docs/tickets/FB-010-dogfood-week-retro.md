@@ -23,23 +23,23 @@ that test.
 - **After that, ARCA's backlog is wiped.** Wiped always means closed with a reason, never deleted,
   so the history survives.
 - **THE RESET starts fresh on the new system** after that, not on the old lane.
-- **Until then, THE RESET is parked.** Its old tickets and plans are being listed for John. None is
-  closed until he says so.
+- **Until then, THE RESET is parked.**
+- **There is nothing old to carry over** (John, 2 November 2026). Nothing was ever built for THE
+  RESET: it had no repository and no tickets. What it has is its Product Requirements Document and
+  a Business Services Requirements document, which define platform v0.1.
 
 ## Scope, when John unparks it
 
-1. **Start clean.** Use the list of THE RESET's old tickets and plans to decide, with John, what
-   carries over and what is closed with a reason. Nothing is deleted.
-2. **Set the venture up on the new system.** Its repositories, Archon registered against them, and
+1. **Set the venture up on the new system.** Its repositories, Archon registered against them, and
    Cowgate runners for its tickets. Its own persistent machine holds what keeps state (the approval
    record, the brain, the office, the composer), as D11 says. Its manifest moves from `draft` to
    `active` only when all of that works.
-3. **Ross signs in** with his Bruntsfield Workspace account. A test must show he sees THE RESET and
+2. **Ross signs in** with his Bruntsfield Workspace account. A test must show he sees THE RESET and
    nothing else (non-negotiable 6).
-4. **A week of real use.** Ross says what he wants, watches it get picked up, decides when asked, and
+3. **A week of real use.** Ross says what he wants, watches it get picked up, decides when asked, and
    reads what happened, through the studio. Every place he gets stuck, or has to leave the studio, is
    filed as a ticket the same day, however small.
-5. **A retro**, written for Ross as much as for us: `docs/retro-first-founder.md`, with the tickets
+4. **A retro**, written for Ross as much as for us: `docs/retro-first-founder.md`, with the tickets
    it implies.
 
 ## Out of scope
@@ -50,7 +50,6 @@ that test.
 
 ## Acceptance criteria
 
-- [ ] THE RESET's old tickets and plans each have a decision: carried over, or closed with a reason.
 - [ ] THE RESET runs on the new system, and its manifest says `active`.
 - [ ] Ross can sign in, sees only THE RESET, and a cross-venture test proves he cannot read ARCA.
 - [ ] Five working days of Ross using the studio, with every friction point filed as a ticket.
