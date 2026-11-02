@@ -50,6 +50,10 @@ Where the plan and a ticket disagree, the ticket's **scope** section wins for wh
    screen.)*
 3. **Respect ticket scope.** Discovered work becomes a new ticket file in the PR or a follow-up — never scope creep into the current PR.
 4. **Gates are absolute.** Engineering changes gate on PR review; external actions (email, social, CRM, payments) gate on **ActiveGraph** approval events. Nothing external ever executes without a recorded human approval (`approval.proposed` → `approval.granted`).
+   *(One exemption, John, 2 November 2026 (FB-289): a founder's own notices about their own
+   venture's work, sent only to that founder's own sign-in address and their own phone, need no
+   recorded approval. Nothing else is exempt: not a message to anyone else, not one about another
+   venture, and not one sent anywhere but the founder's own sign-in address or phone.)*
 5. **Venture-as-config.** Nothing venture-specific lives in the studio core. A venture is a manifest; the studio must stay generic enough that a B2B motion (bank-sponsored wealth product) is "just another manifest."
 6. **Venture isolation is server-side.** One VPS per venture (D1); a venture-scoped session must **never** fetch another venture's data — enforced server-side, never in the UI.
 7. **Contracts through bcap-contracts.** Every rendered entity (Venture, Lane, Ticket, Approval, Department, RunReport) is a bcap-contracts type. Schema changes happen there (FB-002), consumed here as generated TS types. Schemas win on conflict.
