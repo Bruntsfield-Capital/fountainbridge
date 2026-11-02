@@ -25,6 +25,33 @@ export function mayPress(action: PressAction, isJohn: boolean): boolean {
 /** Every press but a sign-off settles the card: nothing more can be pressed on that version. */
 export const settles = (action: PressAction) => action !== 'accept';
 
+/**
+ * After a founder's Send back, John keeps Reject and Try again (John, 30 October 2026; cowgate
+ * CG-0070, FB-286). Once the box has done a founder's Send back, it stands, and every other press on
+ * that version of the card is out of date, except one of these two by John. That press follows the
+ * Send back up: the box rejects the waiting run, and for Try again asks the lane to redo the work
+ * with the founder's note. Once a follow-up stands, nothing more is taken on that version.
+ */
+export const FOLLOW_UPS: readonly PressAction[] = ['reject', 'try-again'];
+
+/** A founder's Send back that the box did: John may follow it up. */
+export const awaitsFollowUp = (p: Pick<StoredPress, 'action' | 'byJohn' | 'answer'>) =>
+  p.action === 'send-back' && !p.byJohn && p.answer?.outcome === 'done';
+
+/**
+ * Whether a new settling press may be recorded, given the presses that stand on its card now
+ * (`stands`): "first" when none stands; "follow-up" when the only one is a founder's Send back the
+ * box did and this is John's Reject or Try again; null when it is out of date.
+ */
+export function placeFor(
+  standing: Pick<StoredPress, 'action' | 'byJohn' | 'answer' | 'followsUp'>[],
+  press: Pick<NewPress, 'action' | 'byJohn'>,
+): 'first' | 'follow-up' | null {
+  if (standing.length === 0) return 'first';
+  const followUp = press.byJohn && FOLLOW_UPS.includes(press.action);
+  return followUp && standing.every(awaitsFollowUp) ? 'follow-up' : null;
+}
+
 /** What the box said happened. */
 export const OUTCOMES = ['done', 'out-of-date', 'refused'] as const;
 export type Outcome = (typeof OUTCOMES)[number];
@@ -51,6 +78,8 @@ export interface StoredPress {
   note: string;
   /** The version of the work they were shown. */
   seenHeadSha: string;
+  /** John's Reject or Try again after a founder's Send back (FB-286, `placeFor`). */
+  followsUp: boolean;
   pressedAt: string;
   collectedAt: string | null;
   answer: BoxAnswer | null;

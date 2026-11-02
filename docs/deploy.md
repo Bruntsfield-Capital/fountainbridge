@@ -102,8 +102,8 @@ are test-only seams and the app treats them as such.
 Staging has its own Postgres, in its own environment, holding test data only. Production's database
 (Supabase) is never touched by any of this.
 
-**Before each deploy, Railway runs `node scripts/apply-schema.mjs`** (the pre-deploy command, in
-`railway.json` and `.railway/railway.ts`). It runs inside Railway's private network, so the database
+**Before each deploy, Railway runs `node scripts/apply-schema.mjs`** (first in `npm run
+before-deploy`, the pre-deploy command in `railway.json` and `.railway/railway.ts`). It runs inside Railway's private network, so the database
 never needs a public address. It loads every `db/*.sql` file the database hasn't had yet, in name
 order, records each in a table called `schema_files`, and gives the `foundry_studio` role a sign-in
 with the password in `STUDIO_DB_PASSWORD`. A schema change is always a new file: a file that changed
@@ -129,6 +129,47 @@ and the owner would read straight past it (FB-170).
 **Previews copy staging** (John, 28 October 2026), never production. Each preview gets its own copy of
 staging's Postgres, and these same variables point at it, so the pre-deploy step loads the schema
 into the preview's own empty database too.
+
+### Production's SQL runs first (FB-287)
+
+Production's database (Supabase) is the one place the schema is run by hand. On 1 November 2026 a
+pull request was merged, and deployed, before its SQL had run there, and for five minutes the studio
+could not record a press. Two locks stop that now.
+
+**1. A pull request that changes `db/` cannot merge until John has run its SQL.** The check
+"Production SQL" (`.github/workflows/production-sql.yml`) fails on any pull request that adds,
+changes or removes a file in `db/`, and names the files. John runs them on production, then adds
+the label `production-sql-run`, and the check passes.
+
+- Only John's label counts. If anyone else (the factory's GitHub App, say) was the last to add it,
+  the check fails.
+- A later push that changes the pull request's `db/` files takes the label off, and the check fails
+  until John adds it again. A push that changes other files, or brings the branch up to date with
+  `main`, leaves it on.
+- The check is taken from `main`, never from the pull request, so a pull request cannot change the
+  rules it is checked by. A pull request that doesn't touch `db/` passes at once.
+- It is a required check on `main`, beside Lint, Typecheck, Test and the Playwright UI gate.
+
+**2. Production refuses to deploy code whose schema isn't there.** Before each deploy, Railway runs
+`npm run before-deploy`: first `apply-schema.mjs` (above), then `scripts/schema-ready.mjs`. That
+signs in with the studio's own `DATABASE_URL` and reads `foundry_meta.schema_files`, the list of
+schema files the database has had run. If a `db/*.sql` file in the new code isn't on it, it names the
+file and stops, and Railway keeps the old version running. It reads only, and prints file names.
+
+- Every schema file records itself on that list, so running the file is what puts it there.
+  `db/012_schema_record.sql` made the list and recorded 001 to 012. Every later file ends with its
+  own line:
+
+  ```sql
+  insert into foundry_meta.schema_files (name) values ('013_example.sql') on conflict (name) do nothing;
+  ```
+
+  `scripts/__tests__/schema-ready.test.mjs` fails for a file without it.
+- On staging and previews, `apply-schema.mjs` runs the files just before, so the check passes there
+  on its own.
+
+**To ship a pull request with a schema file:** run the file on production in Supabase's SQL editor,
+whole, then add the label. Merge after the check is green.
 
 ### Onboarding a venture repo (so its board isn't empty) — FB-021
 

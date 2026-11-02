@@ -16,7 +16,7 @@ import { putTestCards, storedCard } from './review-fixtures';
  * cannot be written at all; and a second standing press on one card cannot be written either.
  */
 
-const SCHEMA = ['001_read_model.sql', '008_factory_cards.sql', '009_factory_presses.sql', '010_press_lapses.sql']
+const SCHEMA = ['001_read_model.sql', '008_factory_cards.sql', '009_factory_presses.sql', '010_press_lapses.sql', '011_follow_ups.sql']
   .map((f) => readFileSync(join(process.cwd(), 'db', f), 'utf8'));
 
 const FOUNDER = 'arca.founder@bruntsfield.capital';
@@ -75,7 +75,7 @@ afterAll(async () => {
 describe('the schema', () => {
   it('loads a second time without changing anything', async () => {
     expect(await press('arca', 'arca', 21, 'accept', FOUNDER, false)).toBe('recorded');
-    await asOwner(() => db.exec(SCHEMA[2] + SCHEMA[3]));
+    await asOwner(() => db.exec(SCHEMA[2] + SCHEMA[3] + SCHEMA[4]));
     expect(await store.presses('arca', 'arca', 21)).toHaveLength(1);
   });
 
@@ -133,7 +133,7 @@ describe('the second walls', () => {
 
   it('two presses that both passed the checks at once: the second is not written', async () => {
     // What two simultaneous presses would do if the card's row lock were ever lost: both insert.
-    const insert = () => scoped('arca', (q) => q.query(PRESS_SQL.insert, ['arca', 21, 'approve', JOHN, true, '', 'sha-arca-21']));
+    const insert = () => scoped('arca', (q) => q.query(PRESS_SQL.insert, ['arca', 21, 'approve', JOHN, true, '', 'sha-arca-21', false]));
     expect((await insert()).rows).toHaveLength(1);
     expect((await insert()).rows).toHaveLength(0);
     await expect(scoped('arca', (q) => q.query(
@@ -349,5 +349,72 @@ describe('a press the box never answers (FB-278)', () => {
       "insert into factorystore.presses (venture_id, repo, number, action, by_email, by_john, seen_head_sha) values ('arca', 'arca', 21, 'stop', $1, false, 'sha-arca-21')",
       [FOUNDER],
     ))).rejects.toThrow(/presses_one_standing/);
+  });
+});
+
+describe("after a founder's Send back, John keeps Reject and Try again (FB-286)", () => {
+  /** The founder's Send back on #21, done by the box. */
+  async function sentBack() {
+    expect(await press('arca', 'arca', 21, 'send-back', FOUNDER, false)).toBe('recorded');
+    const [sb] = await store.presses('arca', 'arca', 21);
+    expect(await store.answer(['arca'], sb.id, 'done', 'Sent back to John with your note.')).toBe('stored');
+    return sb;
+  }
+
+  it.each(['reject', 'try-again'] as const)("John's %s is recorded as its follow-up, and then nothing more is taken", async (action) => {
+    await sentBack();
+    expect(await press('arca', 'arca', 21, action, JOHN, true)).toBe('recorded');
+    const [, followUp] = await store.presses('arca', 'arca', 21);
+    expect([followUp.action, followUp.byJohn, followUp.followsUp]).toEqual([action, true, true]);
+    expect(await press('arca', 'arca', 21, action === 'reject' ? 'try-again' : 'reject', JOHN, true)).toBe('out-of-date');
+    expect(await press('arca', 'arca', 21, 'stop', FOUNDER, false)).toBe('out-of-date');
+  });
+
+  it("the founder's presses, and John's others, are still out of date", async () => {
+    await sentBack();
+    for (const [action, by, john] of [['stop', FOUNDER, false], ['send-back', FOUNDER, false], ['accept', FOUNDER, false],
+      ['approve', JOHN, true], ['stop', JOHN, true], ['split', JOHN, true], ['send-back', JOHN, true]] as const) {
+      expect(await press('arca', 'arca', 21, action, by, john)).toBe('out-of-date');
+    }
+    expect(await store.presses('arca', 'arca', 21)).toHaveLength(1);
+  });
+
+  it('only once the box has done the Send back', async () => {
+    expect(await press('arca', 'arca', 21, 'send-back', FOUNDER, false)).toBe('recorded');
+    expect(await press('arca', 'arca', 21, 'reject', JOHN, true)).toBe('out-of-date');
+  });
+
+  it("not after John's own Send back: he chose that himself", async () => {
+    expect(await press('arca', 'arca', 21, 'send-back', JOHN, true)).toBe('recorded');
+    const [mine] = await store.presses('arca', 'arca', 21);
+    await store.answer(['arca'], mine.id, 'done', 'Sent back.');
+    expect(await press('arca', 'arca', 21, 'reject', JOHN, true)).toBe('out-of-date');
+  });
+
+  it('a follow-up the box said did nothing no longer stands: John may press again', async () => {
+    await sentBack();
+    await press('arca', 'arca', 21, 'reject', JOHN, true);
+    const [, first] = await store.presses('arca', 'arca', 21);
+    expect(await store.answer(['arca'], first.id, 'refused', 'Something went wrong.')).toBe('stored');
+    expect(await press('arca', 'arca', 21, 'try-again', JOHN, true)).toBe('recorded');
+  });
+
+  it('the database takes a follow-up only from John, and only one standing at a time', async () => {
+    await sentBack();
+    const write = (action: string, by: string, john: boolean) => scoped('arca', (q) => q.query(
+      "insert into factorystore.presses (venture_id, repo, number, action, by_email, by_john, seen_head_sha, follows_up) values ('arca', 'arca', 21, $1, $2, $3, 'sha-arca-21', true)",
+      [action, by, john],
+    ));
+    await expect(write('stop', FOUNDER, false)).rejects.toThrow(/presses_follow_up_is_johns/);
+    await expect(write('approve', JOHN, true)).rejects.toThrow(/presses_follow_up_is_johns/);
+    expect((await write('reject', JOHN, true)).rows).toEqual([]);
+    await expect(write('try-again', JOHN, true)).rejects.toThrow(/presses_one_standing/);
+  });
+
+  it('the card says sent back, then shows John\'s decision while the box does it', async () => {
+    await sentBack();
+    expect(stateFrom(await store.presses('arca', 'arca', 21), Date.now())).toMatchObject({ kind: 'sent-back', johnMay: true, lastTry: null });
+    await press('arca', 'arca', 21, 'try-again', JOHN, true);
+    expect(stateFrom(await store.presses('arca', 'arca', 21), Date.now())).toMatchObject({ kind: 'decided', action: 'try-again', answer: null });
   });
 });

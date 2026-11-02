@@ -75,9 +75,10 @@ export default defineRailway(() => {
     },
     deploy: {
       startCommand: 'npm run start',
-      // FB-282: before each deploy, load any new schema files. It does nothing unless
-      // SCHEMA_ADMIN_URL is set, which only staging (and previews, which copy staging) set.
-      preDeployCommand: ['node scripts/apply-schema.mjs'],
+      // Before each deploy (package.json's before-deploy): FB-282 loads any new schema files, which
+      // it does only where SCHEMA_ADMIN_URL is set (staging, and previews, which copy staging); then
+      // FB-287 stops the deploy if the database lacks a schema file this version has.
+      preDeployCommand: ['npm run before-deploy'],
       // Without this, a deploy that starts but cannot serve a page is still marked healthy.
       healthcheckPath: '/api/health',
       healthcheckTimeout: 100,

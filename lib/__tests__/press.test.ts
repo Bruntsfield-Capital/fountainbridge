@@ -221,3 +221,26 @@ describe('when the factory goes quiet (FB-278)', () => {
     expect(await store.answer(['arca'], first.id, 'done', 'Made part of ARCA.')).toBe('stored');
   });
 });
+
+describe("after a founder's Send back, John keeps Reject and Try again (FB-286)", () => {
+  async function sentBack() {
+    expect((await press(FOUNDER, 'send-back', { note: 'Bigger, please.' })).ok).toBe(true);
+    const [sb] = await on21();
+    expect(await store.answer(['arca'], sb.id, 'done', 'Sent back to John with your note.')).toBe('stored');
+  }
+
+  it.each(['reject', 'try-again'])("John's %s is recorded, once", async (action) => {
+    await sentBack();
+    expect((await press(JOHN, action)).ok).toBe(true);
+    expect((await on21()).map((p) => [p.action, p.followsUp])).toEqual([['send-back', false], [action, true]]);
+    expect(await press(JOHN, action === 'reject' ? 'try-again' : 'reject')).toEqual({ ok: false, message: OUT_OF_DATE });
+  });
+
+  it("the founder's presses, and John's others, are out of date", async () => {
+    await sentBack();
+    expect(await press(FOUNDER, 'stop')).toEqual({ ok: false, message: OUT_OF_DATE });
+    expect(await press(FOUNDER, 'accept')).toEqual({ ok: false, message: OUT_OF_DATE });
+    expect(await press(JOHN, 'approve')).toEqual({ ok: false, message: OUT_OF_DATE });
+    expect(await on21()).toHaveLength(1);
+  });
+});

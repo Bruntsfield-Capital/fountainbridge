@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, useTransition, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { Decision, type DecisionResult, type ReviewNotes } from './Decision';
 import { isSettled, noteFrom, pictureWords, type CardState, type Pin, type PictureName, type ReviewView } from '@/lib/review';
 import { BUTTONS_OFF } from '@/lib/presses';
+import { pressFactoryCard } from '@/app/actions/press';
+import { Mark } from './Mark';
 
 /**
  * The Review screen (FB-274), drawn as the "Studios, aligned" canvas draws it, in the Bruntsfield
@@ -69,7 +71,7 @@ function stateFlag(state: CardState, isJohn: boolean): { tone: string; text: str
     case 'signed-off':
       return isJohn ? { tone: 'is-attention', text: 'Signed off · your decision' } : { tone: 'is-ok', text: 'Signed off · waiting for John' };
     case 'sent-back':
-      return { tone: 'is-attention', text: 'Sent back' };
+      return { tone: 'is-attention', text: isJohn && state.johnMay ? 'Sent back · your decision' : 'Sent back' };
     case 'approved':
       return state.answer ? { tone: 'is-ok', text: 'Part of the product' } : { tone: 'is-working', text: 'Approved · waiting for the factory' };
     case 'decided':
@@ -145,7 +147,7 @@ export function ReviewScreen({ view }: { view: ReviewView }) {
   const decided = (r: DecisionResult) => {
     const at = new Date().toISOString();
     if (r.decided === 'send-back') {
-      setState({ kind: 'sent-back', by: 'you', at, note: reviewNotes?.text ?? '', signedOffBy: state.kind === 'signed-off' ? state.by : null, answer: null });
+      setState({ kind: 'sent-back', by: 'you', at, note: reviewNotes?.text ?? '', signedOffBy: state.kind === 'signed-off' ? state.by : null, answer: null, johnMay: false, lastTry: null });
     } else if (r.signedOff) {
       setState({ kind: 'signed-off', by: 'you', at, note: own });
     } else {
@@ -155,6 +157,12 @@ export function ReviewScreen({ view }: { view: ReviewView }) {
     setPins([]);
     setWhole('');
     setActive(null);
+  };
+
+  // John's Reject or Try again after a founder's Send back (FB-286): recorded, not yet done.
+  const followedUp = (action: FollowUpAction) => {
+    if (state.kind !== 'sent-back') return;
+    setState({ kind: 'decided', action, by: 'you', at: new Date().toISOString(), note: '', signedOffBy: state.signedOffBy, answer: null });
   };
 
   const flag = stateFlag(state, isJohn);
@@ -354,7 +362,7 @@ export function ReviewScreen({ view }: { view: ReviewView }) {
               </section>
             ) : null}
 
-            <DecisionPanel view={view} state={state} reviewNotes={reviewNotes} written={written} onDecided={decided} />
+            <DecisionPanel view={view} state={state} reviewNotes={reviewNotes} written={written} onDecided={decided} onFollowedUp={followedUp} />
           </aside>
         </div>
 
@@ -406,6 +414,7 @@ function trailLast(state: CardState, isJohn: boolean): string {
     case 'signed-off':
       return `${lapsed}${state.by === 'you' ? 'Signed off by you. Waiting for John.' : `Signed off by ${state.by}. Waiting for your decision.`}`;
     case 'sent-back':
+      if (isJohn && state.johnMay) return `Sent back by ${state.by}. Waiting for your decision: try again with the note, or reject it.`;
       return said ? `Sent back by ${state.by}.${said}` : `Sent back by ${state.by}. Your team is on it.`;
     case 'approved':
       if (!state.answer) return `Approved by ${state.by}. Waiting for the factory to make it part of the product.`;
@@ -426,13 +435,14 @@ function SignedOffNotes({ by, note }: { by: string; note: string }) {
 }
 
 function DecisionPanel({
-  view, state, reviewNotes, written, onDecided,
+  view, state, reviewNotes, written, onDecided, onFollowedUp,
 }: {
   view: ReviewView;
   state: CardState;
   reviewNotes: ReviewNotes | null;
   written: number;
   onDecided: (r: DecisionResult) => void;
+  onFollowedUp: (action: FollowUpAction) => void;
 }) {
   const isJohn = view.viewer.isJohn;
   const work = { repo: view.repo, number: view.number, headSha: view.headSha };
@@ -444,9 +454,9 @@ function DecisionPanel({
       <section className="bs-decision rv-decision" aria-label="Sent back" data-testid="review-decision">
         <div className="bs-decision__head"><span className="label rv-head-attention">Sent back</span><span className="mono rv-quiet">{day(state.at)}</span></div>
         <div className="rv-flags"><span className="bs-flag is-attention">Sent back by {state.by}</span></div>
-        {state.answer ? <BoxSaid answer={state.answer} /> : <p className="ui rv-ink">Your team has the notes and starts again. It comes back here when they finish.</p>}
+        {isJohn && state.johnMay ? null : state.answer ? <BoxSaid answer={state.answer} /> : <p className="ui rv-ink">Your team has the notes and starts again. It comes back here when they finish.</p>}
         {state.note ? <p className="ui rv-theirs__text" data-testid="review-sent-note">{state.note}</p> : null}
-        <NextLink view={view} />
+        {isJohn && state.johnMay ? <FollowUp view={view} lastTry={state.lastTry} onFollowedUp={onFollowedUp} /> : <NextLink view={view} />}
       </section>
     );
   }
@@ -535,6 +545,46 @@ function DecisionPanel({
             : 'You can sign it off and still leave notes. Your team picks them up next time.'}
       </p>
     </section>
+  );
+}
+
+type FollowUpAction = 'reject' | 'try-again';
+
+/**
+ * John's two buttons after a founder's Send back (FB-286; John, 30 October 2026). Either one rejects
+ * the run waiting at the card, so the work doesn't go ahead as it is; Try again also asks the lane to
+ * redo it with the founder’s note. The planning box does both, as for the same buttons on Telegram.
+ */
+function FollowUp({ view, lastTry, onFollowedUp }: { view: ReviewView; lastTry: string | null; onFollowedUp: (action: FollowUpAction) => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const [pressing, setPressing] = useState<FollowUpAction | null>(null);
+  const [pending, startTransition] = useTransition();
+  const off = view.quiet ? BUTTONS_OFF : null;
+  const go = (action: FollowUpAction) => {
+    setPressing(action);
+    startTransition(async () => {
+      setError(null);
+      const r = await pressFactoryCard(view.ventureId, view.repo, view.number, action, '', view.headSha);
+      if (r.ok) onFollowedUp(action);
+      else setError(r.message);
+    });
+  };
+  const busy = (action: FollowUpAction) => pending && pressing === action;
+  return (
+    <div className="rv-decide" data-testid="review-follow-up">
+      {lastTry ? <p className="rv-decide__msg is-refused" data-testid="review-last-try"><Mark />{lastTry}</p> : null}
+      {error ? <p className="rv-decide__msg is-refused" data-testid="review-msg" role="status"><Mark />{error}</p> : null}
+      {off ? <p className="rv-decide__msg is-refused" data-testid="review-off"><Mark />{off}</p> : null}
+      <p className="help rv-quiet">Try again has it redone with this note. Reject stops it going ahead as it is.</p>
+      <div className="rv-decide__buttons">
+        <button type="button" className="bs-btn bs-btn--primary" data-testid="review-try-again" disabled={pending || Boolean(off)} onClick={() => go('try-again')}>
+          {busy('try-again') ? 'Working…' : 'Try again with the note →'}
+        </button>
+        <button type="button" className="bs-btn" data-testid="review-reject" disabled={pending || Boolean(off)} onClick={() => go('reject')}>
+          {busy('reject') ? 'Working…' : 'Reject it'}
+        </button>
+      </div>
+    </div>
   );
 }
 
