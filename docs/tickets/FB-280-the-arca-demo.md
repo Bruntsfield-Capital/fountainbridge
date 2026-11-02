@@ -1,6 +1,6 @@
 # FB-280 — The demo on ARCA
 
-**Status:** Todo · **Kind:** medium · **Budget:** $25 · **Rough date:** 10 November 2026 · **Pilot step:** 9 · **Raised by:** John, 28 October 2026 (the factory pilot, `docs/prd/factory-pilot-release.md`) · One ticket = one branch = one PR.
+**Status:** Todo · **Kind:** medium · **Budget:** $25 · **Rough date:** Monday 9 November 2026 (John, 2 November 2026: the weekdays hold) · **Pilot step:** 9 · **Raised by:** John, 28 October 2026 (the factory pilot, `docs/prd/factory-pilot-release.md`) · One ticket = one branch = one PR.
 
 ## Why
 
