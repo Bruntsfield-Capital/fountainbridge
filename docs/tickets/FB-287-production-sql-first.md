@@ -64,10 +64,34 @@ rules in `scripts/schema-ready-lib.mjs`).
   (`scripts/__tests__/schema-ready.test.mjs`).
 - [x] Every `db/*.sql` file from 012 on records itself; the test fails for one that doesn't.
 - [x] Each rule, taken out of the code, is caught by a test (nine rules, nine caught).
-- [ ] On production, after John runs `db/012`: the first deploy's pre-deploy step passes, and says so
-  in Railway's log. Checked after merge.
-- [ ] John has made "Production SQL" a required check on `main`.
+- [x] On production, after John runs `db/012`: the first deploy's pre-deploy step passes, and says so
+  in Railway's log. It did on 2 November, at the second try (below): "The database has every schema
+  file this version needs (13 recorded)", at 15:08:45 UTC.
+- [x] John has made "Production SQL" a required check on `main` (2 November).
 - [x] Every command in `CLAUDE.md` `## Checks` passes.
+
+## What happened on production (1–2 November)
+
+- **The check worked first time.** On #417 itself, "Production SQL" failed when the pull request
+  opened (19:50 UTC, 1 November), and passed once John had added the label (19:55). John merged at
+  19:57.
+- **Staging passed.** It ran `db/012` by itself, and its log said "The database has every schema
+  file this version needs (13 recorded)".
+- **Production's first deploy stopped, and the old version kept running.** Its log said the
+  database did not have any of 001 to 012. The list was there, and John had run `db/012`, but the
+  studio's role read no rows from it.
+- **The cause: row-level security, switched on by Supabase, with no rule.** Supabase switched
+  row-level security on for `foundry_meta.schema_files` by itself when `db/012` made it. With it on
+  and no rule (policy), the studio's role reads nothing, while John, signed in to Supabase as the
+  table's owner, saw all 13 rows. Staging's Postgres doesn't do this, so the tests and staging
+  passed.
+- **The fix.** John added the rule by hand on production on 2 November:
+  `create policy schema_files_studio_reads on foundry_meta.schema_files for select to foundry_studio using (true);`
+  He redeployed, and the deploy passed (15:08:45 UTC). `db/013_schema_record_readable.sql`
+  (FB-288) is the same rule, so every database matches, and a test now fails for any table that
+  doesn't switch row-level security on and give its rule itself.
+- **What it shows.** Lock 2 did its job on its first real day: production could not confirm its
+  schema, so it kept the old version. Nothing was down.
 
 ## Out of scope
 

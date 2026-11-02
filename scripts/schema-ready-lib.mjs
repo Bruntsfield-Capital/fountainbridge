@@ -46,3 +46,23 @@ export function recordingProblems(files) {
   }
   return problems;
 }
+
+/**
+ * The tables the schema files make that have no row-level security, or no rule for it, one line
+ * each (FB-288). Supabase can switch row-level security on by itself for a new table, and with no
+ * rule the studio's role then reads nothing. So every table switches it on, and gives its rule, in
+ * the schema files themselves.
+ */
+export function tablesWithoutRules(files) {
+  const all = Object.values(files).map((sql) => sql.replace(/--[^\n]*/g, '')).join('\n');
+  const made = [...all.matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?([a-z_][a-z0-9_.]*)/gi)].map((m) => m[1].toLowerCase());
+  const problems = [];
+  for (const table of [...new Set(made)].sort()) {
+    const name = table.replace(/\./g, '\\.');
+    const on = new RegExp(`alter\\s+table\\s+${name}\\s+enable\\s+row\\s+level\\s+security`, 'i').test(all);
+    const rule = new RegExp(`create\\s+policy\\s+\\w+\\s+on\\s+${name}\\b`, 'i').test(all);
+    if (!on) problems.push(`${table}: switch row-level security on for it ("alter table ${table} enable row level security").`);
+    if (!rule) problems.push(`${table}: give it a rule ("create policy ... on ${table} ..."), so the studio can read what it needs.`);
+  }
+  return problems;
+}

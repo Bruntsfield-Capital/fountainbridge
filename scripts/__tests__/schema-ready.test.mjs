@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { applySchema } from '../apply-schema.mjs';
-import { FIRST_RECORDING, missingFiles, namesRecorded, recordingProblems } from '../schema-ready-lib.mjs';
+import { FIRST_RECORDING, missingFiles, namesRecorded, recordingProblems, tablesWithoutRules } from '../schema-ready-lib.mjs';
 import { schemaReady } from '../schema-ready.mjs';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
@@ -48,6 +48,33 @@ describe('every schema file records itself', () => {
 
   it('passes a new file that records itself', () => {
     expect(recordingProblems({ ...realFiles(), '013_new.sql': `create table x (id int);\n\n${record('013_new.sql')}\n` })).toEqual([]);
+  });
+});
+
+describe('every table has row-level security and a rule (FB-288)', () => {
+  // Supabase can switch row-level security on by itself for a new table; with no rule the studio
+  // then reads nothing, as production did on 2 November.
+  it('holds for the db/ files in this repository', () => {
+    expect(tablesWithoutRules(realFiles())).toEqual([]);
+  });
+
+  it('fails for a new table with neither, naming both', () => {
+    const files = { ...realFiles(), '099_new.sql': 'create table if not exists foundry_meta.notes (id int);' };
+    expect(tablesWithoutRules(files)).toEqual([
+      'foundry_meta.notes: switch row-level security on for it ("alter table foundry_meta.notes enable row level security").',
+      'foundry_meta.notes: give it a rule ("create policy ... on foundry_meta.notes ..."), so the studio can read what it needs.',
+    ]);
+  });
+
+  it('fails for a table with row-level security on but no rule, as 012 alone was', () => {
+    const files = realFiles();
+    delete files['013_schema_record_readable.sql'];
+    files['012_schema_record.sql'] += '\nalter table foundry_meta.schema_files enable row level security;\n';
+    expect(tablesWithoutRules(files)).toEqual([expect.stringMatching(/^foundry_meta\.schema_files: give it a rule/)]);
+  });
+
+  it('does not count a table named only in a comment', () => {
+    expect(tablesWithoutRules({ 'a.sql': '-- create table x.y (id int);' })).toEqual([]);
   });
 });
 
@@ -135,6 +162,23 @@ describe('checking a real database', () => {
     if (!admin) return ctx.skip();
     await onDb(`delete from foundry_meta.schema_files where name = '011_follow_ups.sql'`);
     await expect(schemaReady({ url, log: () => {} })).rejects.toThrow(/does not have 011_follow_ups\.sql\./);
+  });
+
+  it('lets the studio read the list with row-level security on, as on production (FB-288)', async (ctx) => {
+    if (!admin) return ctx.skip();
+    const c = new pg.Client({ host: SOCKET, database: DB });
+    await c.connect();
+    try {
+      const on = (await c.query(`select relrowsecurity from pg_class where oid = 'foundry_meta.schema_files'::regclass`)).rows[0];
+      expect(on).toEqual({ relrowsecurity: true });
+      await c.query('begin');
+      await c.query('set local role foundry_studio');
+      const seen = (await c.query('select count(*)::int as n from foundry_meta.schema_files')).rows[0].n;
+      await c.query('rollback');
+      expect(seen).toBeGreaterThanOrEqual(13);
+    } finally {
+      await c.end();
+    }
   });
 
   it("lets the studio's role read the record, and nothing more", async (ctx) => {
