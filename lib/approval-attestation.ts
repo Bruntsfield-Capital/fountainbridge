@@ -24,6 +24,7 @@
 
 import 'server-only';
 import { createHmac } from 'node:crypto';
+import { isFounder } from './authz';
 import type { VentureSummary } from './ventures';
 
 export function attestationFor(
@@ -59,10 +60,6 @@ function normalise(email: string): string {
   return email.trim().toLowerCase();
 }
 
-function isFounderOf(email: string, venture: VentureSummary): boolean {
-  const e = normalise(email);
-  return Boolean(e && venture.founderEmail && venture.founderEmail.trim().toLowerCase() === e);
-}
 
 function isAdmin(email: string, adminEmails: string[]): boolean {
   const e = normalise(email);
@@ -80,7 +77,7 @@ function isAdmin(email: string, adminEmails: string[]): boolean {
  */
 export function canDecide(email: string, role: ApproverRole, venture: VentureSummary, adminEmails: string[]): boolean {
   if (!normalise(email)) return false;
-  const founder = isFounderOf(email, venture);
+  const founder = isFounder(venture, email);
   const admin = isAdmin(email, adminEmails);
   switch (role) {
     case 'founder':
@@ -121,7 +118,7 @@ export function isDualPair(first: string, second: string, venture: VentureSummar
   const a = normalise(first);
   const b = normalise(second);
   if (!a || !b || a === b) return false;
-  return (isFounderOf(a, venture) && isAdmin(b, adminEmails)) || (isAdmin(a, adminEmails) && isFounderOf(b, venture));
+  return (isFounder(venture, a) && isAdmin(b, adminEmails)) || (isAdmin(a, adminEmails) && isFounder(venture, b));
 }
 
 /**
@@ -129,7 +126,7 @@ export function isDualPair(first: string, second: string, venture: VentureSummar
  * The person who has not approved yet is named, so nobody has to guess whose turn it is.
  */
 export function stillNeededAfter(first: string, venture: VentureSummary, adminEmails: string[]): string {
-  const founder = isFounderOf(first, venture);
+  const founder = isFounder(venture, first);
   const admin = isAdmin(first, adminEmails);
   // ARCA's founder is named "Founder", a placeholder: "Founder, the founder," would say it twice.
   const name = venture.founderName?.trim();

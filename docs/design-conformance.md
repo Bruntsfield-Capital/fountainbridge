@@ -1275,3 +1275,24 @@ production, for the reasons above.
 
 The figure in brackets is what the line adds to the same page while the factory reports. Nothing
 scrolls sideways at either size.
+
+## FB-279: the founder's switch for messages, at the foot of "Needs you" (1 November 2026)
+
+One new line on Tickets, "Needs you", shown only to the venture's founder: what the studio sends them
+when their team finishes something, gets stuck, or has work sent back, and a button to stop it ("Stop
+these messages"), or to start it again. It sits above the existing line for this device's
+notifications, in the same style. Rendered on a test copy of this branch (its own database, with
+`014_founder_messages.sql` loaded), signed in as ARCA's founder, with messages on and then off, and
+reloaded after each press to see the choice was kept. Each picture was looked at. Signed in as John,
+the line is not drawn. The test copy has no email settings, so the line says "as a notification on
+your phone"; with email settings it also names the founder's address.
+**Not compared with the canvas:** the design artifact has no such line, and this run could not sign
+in to it. **Not production:** the change is not deployed until it merges.
+
+| Tickets, "Needs you", as ARCA's founder | 1440×1000 | 393×851 |
+| --- | --- | --- |
+| Messages on | 1,507px | 1,953px |
+| Messages off | 1,477px | 1,933px |
+
+Off is 20 to 30px shorter than on, because its sentence is shorter. Nothing scrolls sideways at
+either size.

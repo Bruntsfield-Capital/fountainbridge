@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { authorizeVentures, canAccessVenture, parseAdminEmails } from '../authz';
+import { authorizeVentures, canAccessVenture, founderAddress, isFounder, parseAdminEmails } from '../authz';
 import { loadVentures } from '../ventures';
 
 // arca's founder here is John (who is also the admin); the-reset's is Ross.
@@ -60,6 +60,23 @@ describe('canAccessVenture', () => {
     const a = { isAdmin: false, ventureIds: ['the-reset'] };
     expect(canAccessVenture(a, 'the-reset')).toBe(true);
     expect(canAccessVenture(a, 'arca')).toBe(false);
+  });
+});
+
+describe('founderAddress', () => {
+  it('trims and lowercases the founder address, and gives null when there is none', () => {
+    expect(founderAddress({ founderEmail: '  ARCA.Founder@Bruntsfield.Capital ' })).toBe('arca.founder@bruntsfield.capital');
+    expect(founderAddress({ founderEmail: '   ' })).toBeNull();
+    expect(founderAddress({ founderEmail: null })).toBeNull();
+  });
+});
+
+describe('isFounder', () => {
+  it('matches the founder whatever the case or spacing, and nobody when the manifest names none', () => {
+    expect(isFounder({ founderEmail: 'Arca.Founder@bruntsfield.capital' }, ' ARCA.founder@Bruntsfield.Capital ')).toBe(true);
+    expect(isFounder({ founderEmail: 'arca.founder@bruntsfield.capital' }, 'john@bruntsfield.capital')).toBe(false);
+    expect(isFounder({ founderEmail: null }, '')).toBe(false);
+    expect(isFounder({ founderEmail: '  ' }, '  ')).toBe(false);
   });
 });
 

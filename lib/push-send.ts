@@ -1,16 +1,25 @@
 import { shouldNotify, pushMessage, pushDestination, type SoleItem } from './push';
-import { forgetPhone, observeQueue, phones, type Querier } from './push-store';
-import { sendWebPush, type Poster, type VapidKeys } from './webpush';
+import { forgetPhone, observeQueue, phones, phonesOf, type Querier } from './push-store';
+import { sendWebPush, type Poster, type PushTarget, type VapidKeys } from './webpush';
+import type { StoredCard } from './card-store';
+import { cardMessage, type MessageState } from './founder-message';
 
 /**
  * The only place in the studio that sends a push (FB-141).
  *
  * "Nothing else pushes" is a rule that erodes one well-meant addition at a time, so it is held two
- * ways. This function takes a COUNT, not a message: there is no parameter through which a caller
- * could send anything other than "you are the blocker". (`sole` is an address, not words: when
- * exactly one thing waits, the push opens it rather than the list — FB-179.) And the test
- * "sendWebPush is called from exactly one file", in `lib/__tests__/push-store.test.ts`, fails if
- * `sendWebPush` is ever called from any other file.
+ * ways. Neither function here takes words: there is no parameter through which a caller could send
+ * anything but the messages written in this repository. And the test "sendWebPush is called from
+ * exactly one file", in `lib/__tests__/push-store.test.ts`, fails if `sendWebPush` is ever called
+ * from any other file.
+ *
+ * There are exactly two reasons to push:
+ *
+ * - `checkQueue` takes a COUNT: "you are the blocker". (`sole` is an address, not words: when
+ *   exactly one thing waits, the push opens it rather than the list — FB-179.)
+ * - `pushCardMessage` takes a stored CARD (FB-279): the founder's team finished something, got
+ *   stuck, or had work sent back. John asked for founders to hear about those on their phone, and
+ *   the words are built from the card's state alone, by `cardMessage`.
  */
 export interface QueueCheck {
   /** What was waiting last time, or null for a first look. */
@@ -47,9 +56,31 @@ export async function checkQueue(
   const out: QueueCheck = { before, now: waiting, sent: 0, removed: 0, failed: 0 };
   if (!shouldNotify({ before, now: waiting })) return out;
 
-  const message = pushPayload(venture, waiting, opts.sole ?? null);
-  for (const phone of await phones(q)) {
-    const r = await sendWebPush(phone, message, keys, { post: opts.post });
+  return { ...out, ...(await pushToEach(q, await phones(q), pushPayload(venture, waiting, opts.sole ?? null), keys, opts.post)) };
+}
+
+/**
+ * Tell a founder's own phones about one card (FB-279). Only the phones the founder turned on under
+ * this venture: `q` is scoped to it, and `phonesOf` reads only the founder's address.
+ *
+ * `sent` above zero is the only sign Web Push gives that a phone took it, and the email waits on it.
+ */
+export async function pushCardMessage(
+  q: Querier,
+  venture: { id: string; name: string },
+  card: StoredCard & { state: MessageState },
+  founderEmail: string,
+  keys: VapidKeys,
+  opts: { post?: Poster } = {},
+): Promise<{ sent: number; removed: number; failed: number }> {
+  return pushToEach(q, await phonesOf(q, founderEmail), cardMessage(venture, card), keys, opts.post);
+}
+
+/** One message to each phone. A phone that has unsubscribed itself is removed, so it is not tried again. */
+async function pushToEach(q: Querier, targets: PushTarget[], message: unknown, keys: VapidKeys, post: Poster | undefined) {
+  const out = { sent: 0, removed: 0, failed: 0 };
+  for (const phone of targets) {
+    const r = await sendWebPush(phone, message, keys, { post });
     if (r === 'sent') out.sent += 1;
     else if (r === 'gone') { await forgetPhone(q, phone.endpoint); out.removed += 1; }
     else out.failed += 1;

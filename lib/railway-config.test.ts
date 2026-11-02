@@ -146,6 +146,16 @@ describe('.railway/railway.ts keeps the studio deploy settings (FB-229)', () => 
     for (const name of known) expect(declared, `${name} would be deleted by apply`).toContain(name);
   });
 
+  it("names every setting a founder's messages need, so apply cannot quietly stop them (FB-279)", () => {
+    // Losing one of these fails nothing: the studio just stops messaging founders and says so in its log.
+    const messages = [
+      'FACTORY_DOOR_SECRET', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT', 'STUDIO_PUBLIC_URL',
+      'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM',
+    ];
+    const declared = variableEntries().map(([name]) => name);
+    for (const name of messages) expect(declared, `${name} would be deleted by apply`).toContain(name);
+  });
+
   it('agrees with railway.json for as long as railway.json still exists', () => {
     // railway.json is what Railway actually uses until `railway config apply` has been run. Two
     // files that disagree would mean the deploy changes the moment someone applies.

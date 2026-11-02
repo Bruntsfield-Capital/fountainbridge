@@ -8,6 +8,10 @@ import { sendHref, workHref } from './palette';
  * > A push the moment the founder becomes the blocker. **Nothing else pushes**; the queue is the
  * > only thing that waits on a person.
  *
+ * FB-279 adds one more reason, on purpose and at John's request: the founder hears once when their
+ * team's work is finished, stuck or sent back (`pushCardMessage` in lib/push-send.ts). Both reasons
+ * are sent from that one file, and nothing else pushes.
+ *
  * ## Why the rule is a transition, not a count
  *
  * A founder with nine decisions waiting does not want nine buzzes. They want to be told once that
