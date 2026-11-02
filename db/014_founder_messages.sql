@@ -10,15 +10,26 @@
 --
 -- ## card_messages: one row per message, written BEFORE anything is sent
 --
--- The key is the card's version: its repository, number, state and the commit it is about. The
--- studio inserts the row first, and only the request whose insert went in sends anything. So the box
--- sending the same card again sends nothing, two copies arriving at once send one message, and the
--- same work finished again on a new commit sends one more. A row left `pending` is a message the
--- studio meant to send and did not finish: it is never tried again, so nothing can go twice.
+-- The key is the card's version and its occasion: its repository, number, state, the commit it is
+-- about, and `occasion`. The studio inserts the row first, and only the request whose insert went in
+-- sends anything. So the box sending the same card again sends nothing, two copies arriving at once
+-- send one message, and the same work finished again on a new commit sends one more.
 --
---   `outcome` — `notification`: a phone took it. `email`: no phone did, so it went by email.
---               `none`: neither could be sent (the log says why). `off`: the founder had stopped
---               these messages, so nothing was sent.
+--   `occasion` — '' for a finished card with a commit: one "finished" message per commit. For a
+--                stuck or sent-back card, or a finished one with no commit, the time of the card's
+--                last trail entry (or its `sentAt` if it has none). Each new event on the box adds a
+--                trail entry, so a second "stuck" on the same commit is a new message, while the
+--                same version sent again is not (`messageKey` in lib/founder-message.ts).
+--   `outcome`  — `pending`: claimed, and not finished yet. `notification`: a phone took it.
+--                `email`: no phone did, so it went by email. `none`: neither could be sent.
+--                `off`: the founder had stopped these messages, so nothing was sent.
+--                `given-up`: three tries, and none could send it. `outdated`: by the time it was
+--                tried again, the card had moved on, so it was not sent.
+--   `attempts`, `tried_at` — how many tries, and when the last began. A row left `pending` (the
+--                studio stopped between the claim and the send) or `none` is tried again on a
+--                heartbeat once its last try is ten minutes old, three tries in all.
+--   `why`      — when nothing went, why, in plain words. Never an address or a secret.
+--   `reported_at` — when the box was told this message was given up, so John hears of it once.
 --
 -- ## messages_off: a row means "stop"
 --
@@ -28,7 +39,10 @@
 -- Both are scoped by venture with the same forced row-level security as every table here, so one
 -- venture's message can never be claimed, or stopped, under another (CLAUDE.md #6).
 --
--- Written so that loading it twice changes nothing.
+-- Written so that loading it twice changes nothing, and so that loading it over the first version
+-- of `card_messages` (which a preview may have put in staging's database) brings that one up to
+-- this: each new column is added only if it is missing, and each rule is dropped by name and made
+-- again.
 
 create schema if not exists pushstore;
 
@@ -36,15 +50,33 @@ create table if not exists pushstore.card_messages (
   venture_id  text not null,
   repo        text not null,
   number      integer not null,
-  state       text not null check (state in ('finished', 'stuck', 'sent-back')),
+  state       text not null,
   head_sha    text not null,
   -- Who it was for: the manifest's founder at the time.
   email       text not null,
-  outcome     text not null default 'pending'
-              check (outcome in ('pending', 'notification', 'email', 'none', 'off')),
-  created_at  timestamptz not null default now(),
-  primary key (venture_id, repo, number, state, head_sha)
+  outcome     text not null default 'pending',
+  created_at  timestamptz not null default now()
 );
+
+alter table pushstore.card_messages add column if not exists occasion    text not null default '';
+alter table pushstore.card_messages add column if not exists attempts    integer not null default 1;
+alter table pushstore.card_messages add column if not exists tried_at    timestamptz not null default now();
+alter table pushstore.card_messages add column if not exists why         text;
+alter table pushstore.card_messages add column if not exists reported_at timestamptz;
+
+-- The first version named these the way Postgres names a column's own check, so the same names
+-- drop either version's.
+alter table pushstore.card_messages drop constraint if exists card_messages_state_check;
+alter table pushstore.card_messages add constraint card_messages_state_check
+  check (state in ('finished', 'stuck', 'sent-back'));
+alter table pushstore.card_messages drop constraint if exists card_messages_outcome_check;
+alter table pushstore.card_messages add constraint card_messages_outcome_check
+  check (outcome in ('pending', 'notification', 'email', 'none', 'off', 'given-up', 'outdated'));
+alter table pushstore.card_messages drop constraint if exists card_messages_attempts_check;
+alter table pushstore.card_messages add constraint card_messages_attempts_check check (attempts >= 1);
+alter table pushstore.card_messages drop constraint if exists card_messages_pkey;
+alter table pushstore.card_messages add constraint card_messages_pkey
+  primary key (venture_id, repo, number, state, head_sha, occasion);
 
 create table if not exists pushstore.messages_off (
   venture_id  text not null,
@@ -69,8 +101,8 @@ create policy messages_off_scoped on pushstore.messages_off
   using (venture_id = current_setting('app.venture_id', true))
   with check (venture_id = current_setting('app.venture_id', true));
 
--- A message is claimed and then marked with what happened; it is never removed. Stopping messages
--- is a row, and starting them again removes it.
+-- A message is claimed and then marked with what happened, and tried again if it did not go; it is
+-- never removed. Stopping messages is a row, and starting them again removes it.
 grant usage on schema pushstore to foundry_studio;
 grant select, insert, update on pushstore.card_messages to foundry_studio;
 grant select, insert, delete on pushstore.messages_off to foundry_studio;

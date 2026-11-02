@@ -18,8 +18,19 @@ export function isFounderMessage<C extends Pick<StoredCard, 'state'>>(ventureId:
   return ventureId !== FACTORY_VENTURE && (MESSAGE_STATES as readonly string[]).includes(card.state);
 }
 
+/**
+ * Which message a card is: its repository, number, state, commit, and occasion.
+ *
+ * A `finished` card with a commit has no occasion: one "finished" message per commit, so the box
+ * sending the same card again (with new pictures, say) sends nothing more. Anything else (stuck,
+ * sent back, or finished with no commit) is told apart by when the box last added to its trail: each
+ * new event on the box adds a trail entry, so a second "stuck" on the same commit is a new message,
+ * while the same version sent again keeps the same occasion. A card with no trail uses `sentAt`.
+ */
 export function messageKey(card: StoredCard & { state: MessageState }): MessageKey {
-  return { repo: card.repo, number: card.number, state: card.state, headSha: card.headSha };
+  const trail = card.plain.trail;
+  const occasion = card.state === 'finished' && card.headSha ? '' : (trail.length > 0 ? trail[trail.length - 1].at : card.sentAt);
+  return { repo: card.repo, number: card.number, state: card.state, headSha: card.headSha, occasion };
 }
 
 const WORDS: Record<MessageState, (name: string) => { title: string; body: string }> = {
@@ -33,14 +44,25 @@ export interface CardMessage {
   body: string;
   /** Where pressing it goes, inside the studio: the card's Review screen, or its row on Tickets. */
   url: string;
-  /** The same tag as the blocker buzz, so the phone shows one notification per venture, not a stack. */
+  /**
+   * The card's own tag: a second card shows beside the first rather than replacing it, and a new
+   * message about the same card replaces its old one and alerts again (`public/sw.js`).
+   */
   tag: string;
 }
 
 export function cardMessage(venture: { id: string; name: string }, card: StoredCard & { state: MessageState }): CardMessage {
   const row = cardRow({ ventureId: venture.id, card, presses: [], readAt: 0 }, { isJohn: false, name: (e) => e }, venture.name);
-  return { ...WORDS[card.state](venture.name), url: cardHref(row), tag: `blocker-${venture.id}` };
+  return { ...WORDS[card.state](venture.name), url: cardHref(row), tag: cardTag(venture.id, card) };
 }
+
+/** `card-<venture>-<repo>-<number>`, in letters, digits, dashes and underscores only. */
+export function cardTag(ventureId: string, card: Pick<StoredCard, 'repo' | 'number'>): string {
+  return `${CARD_TAG_START}${ventureId}-${card.repo}-${card.number}`.replace(/[^A-Za-z0-9_-]/g, '-');
+}
+
+/** Every card's tag starts with this; `public/sw.js` looks for it. */
+export const CARD_TAG_START = 'card-';
 
 export interface CardEmail {
   from: string;

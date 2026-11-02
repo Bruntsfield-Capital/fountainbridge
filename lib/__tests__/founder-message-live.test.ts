@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import type { VentureSummary } from '../ventures';
 import { storedCard } from './review-fixtures';
+import { memoryCardStore, type CardStore } from '../card-store';
 import { fakeSmtp, type FakeSmtp } from './fake-smtp';
 
 /**
@@ -32,7 +33,7 @@ vi.mock('../db', () => ({
   },
 }));
 
-const { founderMessenger } = await import('../founder-message-live');
+const { founderMessenger, founderMessagesLine } = await import('../founder-message-live');
 
 const ARCA: VentureSummary = {
   id: 'arca', name: 'ARCA', description: null, status: 'active', founderName: 'Founder',
@@ -40,6 +41,7 @@ const ARCA: VentureSummary = {
 };
 
 let smtp: FakeSmtp;
+let cards: CardStore;
 const env = (over: Record<string, string | undefined> = {}) => ({
   DATABASE_URL: 'postgres://studio',
   RAILWAY_ENVIRONMENT_NAME: 'production',
@@ -54,6 +56,8 @@ const env = (over: Record<string, string | undefined> = {}) => ({
 
 beforeEach(async () => {
   smtp = await fakeSmtp();
+  cards = memoryCardStore();
+  await cards.putCard('arca', storedCard('arca', 21));
   db = await PGlite.create();
   await db.exec(SQL);
   await db.exec('set role foundry_studio');
@@ -65,27 +69,69 @@ afterEach(async () => {
   await smtp.close();
 });
 
+/** Ten minutes and more pass for every claim. */
+async function later() {
+  await db.exec('reset role');
+  await db.exec(`update pushstore.card_messages set tried_at = tried_at - interval '11 minutes'`);
+  await db.exec('set role foundry_studio');
+}
+
 describe('founderMessenger', () => {
   it('emails ARCA’s founder once about a finished ARCA card, with a link into the studio', async () => {
-    const message = founderMessenger(env(), [ARCA])!;
-    await message('arca', storedCard('arca', 21));
-    await message('arca', storedCard('arca', 21));
+    const message = founderMessenger(env(), [ARCA], cards)!;
+    await message.onCard('arca', storedCard('arca', 21));
+    await message.onCard('arca', storedCard('arca', 21));
     expect(smtp.received).toHaveLength(1);
     expect(smtp.received[0].to).toEqual(['arca.founder@bruntsfield.capital']);
     expect(smtp.received[0].data).toContain('https://studio.example/venture/arca/');
   });
 
   it('messages nobody about a card of no known venture, and does not throw', async () => {
-    await founderMessenger(env(), [ARCA])!('the-reset', storedCard('arca', 21));
+    await founderMessenger(env(), [ARCA], cards)!.onCard('the-reset', storedCard('arca', 21));
     expect(smtp.received).toEqual([]);
   });
 
-  it('sends no email on staging, even with every setting copied from production', async () => {
-    await founderMessenger(env({ RAILWAY_ENVIRONMENT_NAME: 'staging' }), [ARCA])!('arca', storedCard('arca', 21));
-    expect(smtp.received).toEqual([]);
+  it('is nothing at all anywhere but production, so staging never even claims a message', () => {
+    for (const name of ['staging', 'pr-316', 'Production', undefined]) {
+      expect(founderMessenger(env({ RAILWAY_ENVIRONMENT_NAME: name }), [ARCA], cards)).toBeNull();
+    }
+    expect(founderMessenger(env({ RAILWAY_ENVIRONMENT_NAME: ' production ' }), [ARCA], cards)).not.toBeNull();
   });
 
   it('is nothing at all on a studio with no database', () => {
-    expect(founderMessenger(env({ DATABASE_URL: undefined }), [ARCA])).toBeNull();
+    expect(founderMessenger(env({ DATABASE_URL: undefined }), [ARCA], cards)).toBeNull();
+  });
+
+  it('a message the mail server lost is emailed on a later heartbeat', async () => {
+    await founderMessenger(env({ SMTP_PORT: '1' }), [ARCA], cards)!.onCard('arca', storedCard('arca', 21));
+    expect(smtp.received).toEqual([]);
+    await later();
+    await founderMessenger(env(), [ARCA], cards)!.retry();
+    expect(smtp.received).toHaveLength(1);
+    expect(smtp.received[0].to).toEqual(['arca.founder@bruntsfield.capital']);
+  });
+
+  it('one never sent is given up after three tries, and reported once, with its venture', async () => {
+    const message = founderMessenger(env({ SMTP_HOST: undefined }), [ARCA], cards)!;
+    await message.onCard('arca', storedCard('arca', 21));
+    for (let i = 0; i < 3; i += 1) { await later(); await message.retry(); }
+    expect(await message.givenUp()).toEqual([{
+      venture: 'arca', repo: 'arca', number: 21, state: 'finished',
+      why: 'this studio cannot send notifications, and this studio has no email settings, so no email was sent.',
+    }]);
+    expect(await message.givenUp()).toEqual([]);
+    expect(smtp.received).toEqual([]);
+  });
+});
+
+describe('founderMessagesLine', () => {
+  it('draws the founder’s switch on production, and nothing anywhere else', async () => {
+    expect(await founderMessagesLine(ARCA, 'arca.founder@bruntsfield.capital', env())).toEqual({ off: false, email: 'arca.founder@bruntsfield.capital', byEmail: true });
+    // Phone notifications set up too, so only the environment can be what draws nothing.
+    const phones = { VAPID_PUBLIC_KEY: 'not-a-real-public-key', VAPID_PRIVATE_KEY: 'not-a-real-private-key' };
+    expect(await founderMessagesLine(ARCA, 'arca.founder@bruntsfield.capital', env({ ...phones, SMTP_HOST: undefined }))).toMatchObject({ byEmail: false });
+    for (const name of ['staging', undefined]) {
+      expect(await founderMessagesLine(ARCA, 'arca.founder@bruntsfield.capital', env({ ...phones, RAILWAY_ENVIRONMENT_NAME: name }))).toBeNull();
+    }
   });
 });

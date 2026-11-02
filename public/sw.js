@@ -60,17 +60,20 @@ self.addEventListener('fetch', (event) => {
  * The tag means a second buzz for the same venture replaces the first instead of stacking.
  *
  * Since FB-279 the server also sends the founder one message when their team's work is finished,
- * stuck or sent back (`cardMessage` in lib/founder-message.ts). It carries the same tag, so it
- * replaces the blocker buzz rather than stacking beside it.
+ * stuck or sent back (`cardMessage` in lib/founder-message.ts). Each card has its own tag, starting
+ * `card-`, so a second card shows beside the first instead of silently replacing it. A new message
+ * about the same card replaces the old one, and `renotify` makes the phone alert again for it.
  */
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch { /* an unreadable push still says something */ }
   const title = typeof data.title === 'string' ? data.title : 'The studio needs you';
   const url = typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//') ? data.url : '/';
+  const tag = typeof data.tag === 'string' ? data.tag : 'blocker';
   event.waitUntil(self.registration.showNotification(title, {
     body: typeof data.body === 'string' ? data.body : 'Something is waiting on your decision.',
-    tag: typeof data.tag === 'string' ? data.tag : 'blocker',
+    tag,
+    renotify: tag.startsWith('card-'),
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     data: { url },

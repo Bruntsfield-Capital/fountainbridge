@@ -62,7 +62,7 @@ describe('the door, with a secret set', () => {
   it('takes a signed heartbeat', async () => {
     const r = await door.POST(signed('{"kind":"heartbeat"}'));
     expect(r.status).toBe(200);
-    expect(await r.json()).toEqual({ ok: true, message: 'Heard.' });
+    expect(await r.json()).toEqual({ ok: true, message: 'Heard.', givenUp: [] });
   });
 
   it('stops reading a body that never said how long it is, once it is too long', async () => {

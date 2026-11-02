@@ -4,9 +4,11 @@ import { join } from 'node:path';
 import { generateKeyPairSync, createECDH, randomBytes } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import { rememberPhone, phones, type Querier } from '../push-store';
-import { CLAIM_OUTCOMES, MESSAGE_SQL, setMessagesOff } from '../founder-message-store';
-import { MESSAGE_STATES } from '../founder-message';
-import { messageFounder, type MessageDeps } from '../founder-message-send';
+import {
+  CLAIM_OUTCOMES, MESSAGE_SQL, claimCardMessage, dueCardMessages, reportGivenUp, setMessagesOff, takeCardMessage,
+} from '../founder-message-store';
+import { MESSAGE_STATES, messageKey } from '../founder-message';
+import { messageFounder, retryFounderMessages, type MessageDeps, type RetryDeps } from '../founder-message-send';
 import { b64url, type PushTarget } from '../webpush';
 import type { Mail, MailSettings } from '../mail';
 import type { StoredCard } from '../card-store';
@@ -72,6 +74,12 @@ function harness(status = 201) {
   const posted: string[] = [];
   const mailed: Mail[] = [];
   const logged: string[] = [];
+  /** The heartbeat's retry, with the cards the studio holds now. */
+  const retry = (cards: StoredCard[] = [card()], over: Partial<RetryDeps> = {}) => retryFounderMessages({
+    ...deps(),
+    card: async (repo, number) => cards.find((c) => c.repo === repo && c.number === number) ?? null,
+    ...over,
+  });
   const deps = (over: Partial<MessageDeps> = {}): MessageDeps => ({
     venture: ARCA,
     card: card(),
@@ -84,8 +92,14 @@ function harness(status = 201) {
     log: (line) => logged.push(line),
     ...over,
   });
-  return { posted, mailed, logged, deps };
+  return { posted, mailed, logged, deps, retry };
 }
+
+/** Ten minutes and more pass for every claim of the venture's. */
+const later = (venture = 'arca') => as(venture, (q) => q.query(`update pushstore.card_messages set tried_at = tried_at - interval '11 minutes'`));
+
+/** The same card, with one more event on its trail. */
+const withEvent = (c: StoredCard, at: string): StoredCard => ({ ...c, plain: { ...c.plain, trail: [...c.plain.trail, { at, tone: 'blocked', text: 'Stopped again.' }] } });
 
 async function subscribeEveryone() {
   await as('arca', (q) => rememberPhone(q, ARCA_FOUNDER, phone(1)));
@@ -198,6 +212,40 @@ describe('exactly once', () => {
     expect(h.posted).toHaveLength(2);
   });
 
+  it('a finished card sent again on the same commit, with something new on its trail, sends nothing more', async () => {
+    await as('arca', (q) => rememberPhone(q, ARCA_FOUNDER, phone(1)));
+    const h = harness();
+    expect(await messageFounder(h.deps())).toBe('notification');
+    expect(await messageFounder(h.deps({ card: withEvent(card(), '2026-07-21T10:00:00.000Z') }))).toBe('already');
+    expect(h.posted).toHaveLength(1);
+  });
+
+  it('a run stuck twice on the same commit sends a message each time; the same stuck card again sends nothing', async () => {
+    await as('arca', (q) => rememberPhone(q, ARCA_FOUNDER, phone(1)));
+    const h = harness();
+    const stuck = card({ state: 'stuck' });
+    expect(await messageFounder(h.deps({ card: stuck }))).toBe('notification');
+    expect(await messageFounder(h.deps({ card: stuck }))).toBe('already');
+    expect(await messageFounder(h.deps({ card: withEvent(stuck, '2026-07-22T08:00:00.000Z') }))).toBe('notification');
+    expect(h.posted).toHaveLength(2);
+  });
+
+  it('a card with no commit still gets its message, and one more for each new event', async () => {
+    await as('arca', (q) => rememberPhone(q, ARCA_FOUNDER, phone(1)));
+    const h = harness();
+    const noCommit = card({ headSha: '' });
+    expect(await messageFounder(h.deps({ card: noCommit }))).toBe('notification');
+    expect(await messageFounder(h.deps({ card: noCommit }))).toBe('already');
+    expect(await messageFounder(h.deps({ card: withEvent(noCommit, '2026-07-22T08:00:00.000Z') }))).toBe('notification');
+    expect(h.posted).toHaveLength(2);
+  });
+
+  it('a card with no trail is told apart by when it was sent', () => {
+    const bare = card({ state: 'sent-back' });
+    expect(messageKey({ ...bare, state: 'sent-back', plain: { ...bare.plain, trail: [] } }).occasion).toBe(bare.sentAt);
+    expect(messageKey({ ...card(), state: 'finished' }).occasion).toBe('');
+  });
+
   it('stuck, then finished, on the same commit sends two messages in all', async () => {
     await as('arca', (q) => rememberPhone(q, ARCA_FOUNDER, phone(1)));
     const h = harness();
@@ -268,7 +316,7 @@ describe('when it cannot send', () => {
     const run: MessageDeps['run'] = (fn) => (++calls === 2 ? Promise.reject(new Error('the database went away')) : as(ARCA.id, fn));
     expect(await messageFounder(h.deps({ keys: null, run }))).toBe('email');
     expect(h.mailed).toHaveLength(1);
-    expect(h.logged).toEqual(['[founder-messages] arca arca#21 finished: the founder was sent an email, but that could not be written down, so do not send it again: the database went away']);
+    expect(h.logged).toEqual(['[founder-messages] arca arca#21 finished: the founder was sent an email, but that could not be written down, so it may be sent again: the database went away']);
   });
 
   it('logs name no address', async () => {
@@ -282,7 +330,7 @@ describe('when it cannot send', () => {
 describe('the database and the code list the same states and outcomes', () => {
   // A state or outcome the database refuses would make every claim fail, and the founder hear nothing.
   const claim = (n: number, state: string, outcome: string) =>
-    as('arca', (q) => q.query(MESSAGE_SQL.claim, ['wealthcx01/arca', n, state, 'a'.repeat(40), ARCA_FOUNDER, outcome]));
+    as('arca', (q) => q.query(MESSAGE_SQL.claim, ['wealthcx01/arca', n, state, 'a'.repeat(40), '', ARCA_FOUNDER, outcome]));
 
   it('accepts every state and outcome the code can write', async () => {
     let n = 0;
@@ -296,5 +344,191 @@ describe('the database and the code list the same states and outcomes', () => {
   it('refuses a state or an outcome the code does not know', async () => {
     await expect(claim(1, 'done', 'pending')).rejects.toThrow(/check constraint/);
     await expect(claim(2, 'finished', 'sent')).rejects.toThrow(/check constraint/);
+  });
+});
+
+describe('a message that did not go is tried again on a heartbeat', () => {
+  it('a message lost in a restart, between the claim and the send, is sent once, ten minutes on', async () => {
+    await as('arca', (q) => rememberPhone(q, ARCA_FOUNDER, phone(1)));
+    await as('arca', (q) => claimCardMessage(q, messageKey({ ...card(), state: 'finished' }), ARCA_FOUNDER)); // and then the studio stopped
+    const h = harness();
+    expect(await h.retry()).toEqual([]); // not ten minutes yet
+    await later();
+    expect(await h.retry()).toEqual(['notification']);
+    await later();
+    expect(await h.retry()).toEqual([]);
+    expect(h.posted).toEqual(['https://fcm.googleapis.com/fcm/send/phone-1']);
+    expect(h.mailed).toEqual([]); // never both
+  });
+
+  it('one that could not be sent is tried three times in all, then given up with its reason, and reported once', async () => {
+    const h = harness();
+    const failing = { keys: null, mail: null };
+    expect(await messageFounder(h.deps(failing))).toBe('none');
+    await later();
+    expect(await h.retry(undefined, failing)).toEqual(['none']);
+    await later();
+    expect(await h.retry(undefined, failing)).toEqual(['given-up']);
+    await later();
+    expect(await h.retry(undefined, failing)).toEqual([]);
+    const rows = await as('arca', (q) => q.query('select outcome, attempts, why from pushstore.card_messages'));
+    expect(rows.rows).toEqual([{ outcome: 'given-up', attempts: 3, why: 'this studio cannot send notifications, and this studio has no email settings, so no email was sent.' }]);
+
+    expect(await as('arca', (q) => reportGivenUp(q))).toEqual([
+      { repo: 'arca', number: 21, state: 'finished', why: 'this studio cannot send notifications, and this studio has no email settings, so no email was sent.' },
+    ]);
+    expect(await as('arca', (q) => reportGivenUp(q))).toEqual([]);
+  });
+
+  it('a later try that works sends it, and only then', async () => {
+    await as('arca', (q) => rememberPhone(q, ARCA_FOUNDER, phone(1)));
+    const h = harness();
+    expect(await messageFounder(h.deps({ keys: null, mail: null }))).toBe('none');
+    await later();
+    expect(await h.retry()).toEqual(['notification']);
+    expect(h.posted).toHaveLength(1);
+    expect(await outcomes('arca')).toEqual([{ state: 'finished', outcome: 'notification' }]);
+  });
+
+  it('two heartbeats at once can take it only once', async () => {
+    await messageFounder(harness().deps({ keys: null, mail: null }));
+    await later();
+    const [due] = await as('arca', (q) => dueCardMessages(q));
+    expect(await as('arca', (q) => takeCardMessage(q, due))).toBe(2);
+    expect(await as('arca', (q) => takeCardMessage(q, due))).toBeNull();
+  });
+
+  it('a card that has moved on is marked outdated, and nothing is sent', async () => {
+    await as('arca', (q) => rememberPhone(q, ARCA_FOUNDER, phone(1)));
+    const h = harness();
+    await messageFounder(h.deps({ keys: null, mail: null }));
+    await later();
+    expect(await h.retry([card({ headSha: 'n'.repeat(40) })])).toEqual(['outdated']);
+    expect([...h.posted, ...h.mailed]).toEqual([]);
+    expect(await outcomes('arca')).toEqual([{ state: 'finished', outcome: 'outdated' }]);
+  });
+
+  it('a stuck card with a new event since is outdated too: the new event has its own message', async () => {
+    const h = harness();
+    const stuck = card({ state: 'stuck' });
+    await messageFounder(h.deps({ card: stuck, keys: null, mail: null }));
+    await later();
+    expect(await h.retry([withEvent(stuck, '2026-07-22T08:00:00.000Z')])).toEqual(['outdated']);
+  });
+
+  it('a founder who has stopped messages since gets nothing', async () => {
+    const h = harness();
+    await messageFounder(h.deps({ keys: null, mail: null }));
+    await as('arca', (q) => setMessagesOff(q, ARCA_FOUNDER, true));
+    await later();
+    expect(await h.retry()).toEqual(['off']);
+    expect([...h.posted, ...h.mailed]).toEqual([]);
+  });
+
+  it('goes only to the manifest’s founder: a claim for anybody else is outdated', async () => {
+    const h = harness();
+    await messageFounder(h.deps({ keys: null, mail: null, venture: { ...ARCA, founderEmail: ROSS } }));
+    await later();
+    expect(await h.retry()).toEqual(['outdated']);
+    expect(h.mailed).toEqual([]);
+  });
+
+  it('a third try cut off by a restart is given up, not left waiting for ever', async () => {
+    await messageFounder(harness().deps({ keys: null, mail: null }));
+    await as('arca', (q) => q.query(`update pushstore.card_messages set attempts = 3, outcome = 'pending'`));
+    await later();
+    const h = harness();
+    expect(await h.retry()).toEqual(['given-up']);
+    expect([...h.posted, ...h.mailed]).toEqual([]);
+    expect((await as('arca', (q) => reportGivenUp(q)))[0].why).toBe('the studio stopped before it finished sending it');
+  });
+
+  it('only this venture’s messages are tried, and only its own are reported', async () => {
+    await messageFounder(harness().deps({ keys: null, mail: null }));
+    await later();
+    expect(await as('the-reset', (q) => dueCardMessages(q))).toEqual([]);
+    await as('arca', (q) => q.query(`update pushstore.card_messages set outcome = 'given-up'`));
+    expect(await as('the-reset', (q) => reportGivenUp(q))).toEqual([]);
+  });
+
+  it('reports at most the number asked for, the rest on a later heartbeat', async () => {
+    for (let n = 1; n <= 3; n += 1) await messageFounder(harness().deps({ keys: null, mail: null, card: card({ number: n }) }));
+    await as('arca', (q) => q.query(`update pushstore.card_messages set outcome = 'given-up'`));
+    expect(await as('arca', (q) => reportGivenUp(q, 2))).toHaveLength(2);
+    expect(await as('arca', (q) => reportGivenUp(q, 2))).toHaveLength(1);
+  });
+
+  it('a why never names an address', async () => {
+    const h = harness();
+    await messageFounder(h.deps({ mail: null }));
+    await messageFounder(h.deps({ card: card({ number: 2 }), send: async () => 'failed' }));
+    const whys = (await as('arca', (q) => q.query<{ why: string }>('select why from pushstore.card_messages'))).rows.map((r) => r.why);
+    expect(whys).toHaveLength(2);
+    expect(whys.join('\n')).not.toMatch(/@/);
+  });
+});
+
+describe('the schema file, loaded over its first version', () => {
+  // A preview may have loaded the first version of db/014 into staging's database. Loading this one
+  // over it, twice, must bring it up to date and keep what it held.
+  const FIRST = `
+    create schema if not exists pushstore;
+    create table if not exists pushstore.card_messages (
+      venture_id  text not null,
+      repo        text not null,
+      number      integer not null,
+      state       text not null check (state in ('finished', 'stuck', 'sent-back')),
+      head_sha    text not null,
+      email       text not null,
+      outcome     text not null default 'pending'
+                  check (outcome in ('pending', 'notification', 'email', 'none', 'off')),
+      created_at  timestamptz not null default now(),
+      primary key (venture_id, repo, number, state, head_sha)
+    );
+    create table if not exists pushstore.messages_off (
+      venture_id  text not null,
+      email       text not null,
+      since       timestamptz not null default now(),
+      primary key (venture_id, email)
+    );
+    alter table pushstore.card_messages enable row level security;
+    alter table pushstore.card_messages force row level security;
+    insert into pushstore.card_messages (venture_id, repo, number, state, head_sha, email, outcome)
+      values ('arca', 'arca', 9, 'stuck', 'sha-9', 'arca.founder@bruntsfield.capital', 'notification');`;
+  const before = ['001_read_model.sql', '005_push.sql', '012_schema_record.sql'].map((f) => readFileSync(join(process.cwd(), 'db', f), 'utf8')).join('\n');
+  const now = readFileSync(join(process.cwd(), 'db', '014_founder_messages.sql'), 'utf8');
+
+  beforeEach(async () => {
+    db = await PGlite.create();
+    await db.exec(before);
+    await db.exec(FIRST);
+    await db.exec(now);
+    await db.exec(now);
+    await db.exec('set role foundry_studio');
+  });
+
+  it('keeps the old rows, and lets a second stuck on the same commit be its own message', async () => {
+    expect((await as('arca', (q) => q.query('select number, occasion, attempts, outcome from pushstore.card_messages'))).rows)
+      .toEqual([{ number: 9, occasion: '', attempts: 1, outcome: 'notification' }]);
+    const key = { repo: 'arca', number: 9, state: 'stuck' as const, headSha: 'sha-9' };
+    expect(await as('arca', (q) => claimCardMessage(q, { ...key, occasion: '2026-11-01T10:00:00.000Z' }, ARCA_FOUNDER))).toBe('claimed');
+    expect(await as('arca', (q) => claimCardMessage(q, { ...key, occasion: '2026-11-01T10:00:00.000Z' }, ARCA_FOUNDER))).toBe('already');
+  });
+
+  it('takes the new outcomes and still refuses unknown ones', async () => {
+    const claim = (n: number, outcome: string) =>
+      as('arca', (q) => q.query(MESSAGE_SQL.claim, ['arca', n, 'finished', 'a', '', ARCA_FOUNDER, outcome]));
+    expect((await claim(1, 'given-up')).rows).toHaveLength(1);
+    expect((await claim(2, 'outdated')).rows).toHaveLength(1);
+    await expect(claim(3, 'sent')).rejects.toThrow(/check constraint/);
+  });
+
+  it('keeps every venture’s rows apart, as strictly as before', async () => {
+    expect((await as('the-reset', (q) => q.query('select * from pushstore.card_messages'))).rows).toEqual([]);
+    await expect(as('arca', (q) => q.query(
+      `insert into pushstore.card_messages (venture_id, repo, number, state, head_sha, email) values ('the-reset', 'x', 1, 'stuck', 'a', 'x')`,
+    ))).rejects.toThrow(/row-level security/);
+    const forced = await db.query<{ relforcerowsecurity: boolean }>(`select relforcerowsecurity from pg_class where oid = 'pushstore.card_messages'::regclass`);
+    expect(forced.rows[0].relforcerowsecurity).toBe(true);
   });
 });

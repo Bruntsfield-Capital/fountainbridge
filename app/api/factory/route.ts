@@ -4,7 +4,8 @@ import { loadVentures } from '@/lib/ventures';
 import { parseAdminEmails } from '@/lib/authz';
 import { cardStore } from '@/lib/card-store-live';
 import { handleDoor, type DoorAnswer } from '@/lib/factory-door';
-import { founderMessenger } from '@/lib/founder-message-live';
+import { founderMessenger, whyNoMessenger } from '@/lib/founder-message-live';
+import { isFounderMessage } from '@/lib/founder-message';
 
 /**
  * The planning box's door (FB-275): `POST /api/factory`, signed with `FACTORY_DOOR_SECRET`. Cards,
@@ -24,12 +25,13 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request): Promise<Response> {
   const env = process.env;
   const ventures = loadVentures();
-  const messenger = founderMessenger(env, ventures);
+  const store = cardStore(env);
+  const messenger = founderMessenger(env, ventures, store);
   const answer = await handleDoor(
     {
       secret: env.FACTORY_DOOR_SECRET,
       ventures,
-      store: cardStore(env),
+      store,
       org: env.GITHUB_ORG ?? 'wealthcx01',
       now: Date.now,
       log: (line) => console.log(`[factory-door] ${line}`),
@@ -38,7 +40,17 @@ export async function POST(req: Request): Promise<Response> {
       john: parseAdminEmails(env.STUDIO_ADMIN_EMAILS)[0] ?? 'john',
       // FB-279: the founder's message is sent after the box has had its answer, so a slow phone
       // service or mail server never holds the box up.
-      onCard: messenger ? (ventureId, card) => after(() => messenger(ventureId, card)) : undefined,
+      // Anywhere but production, nobody is messaged, and the log says why for each card that would
+      // have been.
+      onCard: messenger
+        ? (ventureId, card) => after(() => messenger.onCard(ventureId, card))
+        : (ventureId, card) => {
+          if (isFounderMessage(ventureId, card)) console.log(`[founder-messages] ${ventureId} ${card.repo}#${card.number} ${card.state}: nobody was messaged: ${whyNoMessenger(env) ?? 'this studio has nowhere to keep cards'}.`);
+        },
+      // The messages that did not go are tried again after the box has its answer, as above. The
+      // given-up ones are read, and marked reported, before it.
+      onHeartbeat: messenger ? () => after(() => messenger.retry()) : undefined,
+      givenUp: messenger ? () => messenger.givenUp() : undefined,
     },
     req.headers,
     (max) => readAtMost(req, max),

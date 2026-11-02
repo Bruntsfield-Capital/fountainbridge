@@ -331,7 +331,7 @@ describe('a preview link', () => {
 describe('a heartbeat', () => {
   it('records when the box reported, by its own signed clock', async () => {
     const { deps, store } = setUp();
-    expect(await send(deps, { kind: 'heartbeat' })).toEqual({ status: 200, body: { ok: true, message: 'Heard.' } });
+    expect(await send(deps, { kind: 'heartbeat' })).toEqual({ status: 200, body: { ok: true, message: 'Heard.', givenUp: [] } });
     expect(await store.lastBeat('planning-box')).toMatchObject({ box: 'planning-box', reportedAt: '2026-11-04T09:00:00.000Z' });
   });
 
@@ -339,6 +339,40 @@ describe('a heartbeat', () => {
     const { deps, store } = setUp();
     expect(status(await send(deps, { kind: 'heartbeat' }, { secret: 'wrong' }))).toBe(401);
     expect(await store.lastBeat('planning-box')).toBeNull();
+  });
+});
+
+describe('a heartbeat and the founder messages that did not go (FB-279)', () => {
+  const GAVE_UP = { venture: 'arca', repo: 'arca', number: 21, state: 'stuck', why: 'this studio has no email settings, so no email was sent.' };
+
+  it('answers with the given-up messages, in exactly the fields the box reads', async () => {
+    const givenUp = vi.fn(async () => [{ ...GAVE_UP, email: 'arca.founder@bruntsfield.capital' }]);
+    const { deps } = setUp({ givenUp });
+    expect(await send(deps, { kind: 'heartbeat' })).toEqual({ status: 200, body: { ok: true, message: 'Heard.', givenUp: [GAVE_UP] } });
+    expect(givenUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts the retries only once the given-up ones are read, and the answer is ready', async () => {
+    const order: string[] = [];
+    const { deps } = setUp({ givenUp: async () => { order.push('read'); return []; }, onHeartbeat: () => order.push('retry') });
+    expect(status(await send(deps, { kind: 'heartbeat' }))).toBe(200);
+    expect(order).toEqual(['read', 'retry']);
+  });
+
+  it('still answers that it heard, with none, when the given-up ones cannot be read', async () => {
+    const { deps, logged } = setUp({ givenUp: async () => { throw new Error('the database went away'); } });
+    expect(await send(deps, { kind: 'heartbeat' })).toEqual({ status: 200, body: { ok: true, message: 'Heard.', givenUp: [] } });
+    expect(logged.join('\n')).toMatch(/given-up founder messages could not be read: the database went away/);
+  });
+
+  it('a refused heartbeat reads nothing and retries nothing', async () => {
+    const givenUp = vi.fn(async () => [GAVE_UP]);
+    const onHeartbeat = vi.fn();
+    const { deps } = setUp({ givenUp, onHeartbeat });
+    expect(status(await send(deps, { kind: 'heartbeat' }, { secret: 'wrong' }))).toBe(401);
+    expect(status(await send(setUp({ givenUp, onHeartbeat, store: null }).deps, { kind: 'heartbeat' }))).toBe(503);
+    expect(givenUp).not.toHaveBeenCalled();
+    expect(onHeartbeat).not.toHaveBeenCalled();
   });
 });
 

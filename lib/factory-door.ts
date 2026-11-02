@@ -68,6 +68,19 @@ export interface DoorDeps {
   john: string;
   /** Told of every card kept, after it is kept: how its founder hears about it (FB-279). */
   onCard?: (ventureId: string, card: StoredCard) => void;
+  /** Told of every heartbeat kept, after its answer is ready: founder messages are tried again (FB-279). */
+  onHeartbeat?: () => void;
+  /** The founder messages given up on and not yet reported, each marked reported as it is read (FB-279). */
+  givenUp?: () => Promise<GivenUpReport[]>;
+}
+
+/** A founder message the studio gave up on, in a heartbeat's answer, so the box can tell John. */
+export interface GivenUpReport {
+  venture: string;
+  repo: string;
+  number: number;
+  state: string;
+  why: string;
 }
 
 export interface DoorReply {
@@ -200,7 +213,16 @@ async function heartbeat(deps: DoorDeps, m: Record<string, unknown>, timestamp: 
     deps.log(`heartbeat could not be kept: ${(e as Error)?.message ?? 'unknown fault'}`);
     return say(500, 'The studio could not keep this just now. Try again in a minute.');
   }
-  return say(200, 'Heard.', true);
+  let givenUp: GivenUpReport[] = [];
+  try {
+    givenUp = deps.givenUp ? (await deps.givenUp()).map(({ venture, repo, number, state, why }) => ({ venture, repo, number, state, why })) : [];
+  } catch (e) {
+    // The heartbeat was kept. Anything not marked reported is reported on a later one.
+    deps.log(`heartbeat: the given-up founder messages could not be read: ${(e as Error)?.message ?? 'unknown fault'}`);
+  }
+  if (givenUp.length > 0) deps.log(`heartbeat: ${givenUp.length} given-up founder ${givenUp.length === 1 ? 'message' : 'messages'} reported`);
+  deps.onHeartbeat?.();
+  return { status: 200, body: { ok: true, message: 'Heard.', givenUp } };
 }
 
 /** The parts of a card that say where it is from and where it stands. Neither plain nor John's. */

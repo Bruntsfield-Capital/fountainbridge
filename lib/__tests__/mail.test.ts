@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { createServer, type AddressInfo } from 'node:net';
-import { mailFromEnv, sendMail, whyNoMail } from '../mail';
+import { isProduction, mailFromEnv, sendMail, whyNoMail } from '../mail';
 import { fakeSmtp, type FakeSmtp } from './fake-smtp';
 
 /**
@@ -9,6 +9,7 @@ import { fakeSmtp, type FakeSmtp } from './fake-smtp';
  */
 const PASS = 'not-a-real-password-9c1e';
 const FULL = {
+  RAILWAY_ENVIRONMENT_NAME: 'production',
   SMTP_HOST: 'smtp.gmail.com',
   SMTP_PORT: '465',
   SMTP_USER: 'john@bruntsfield.capital',
@@ -22,7 +23,7 @@ afterEach(async () => { await server?.close(); server = null; });
 describe('the settings', () => {
   it('are read when every one is present', () => {
     expect(mailFromEnv(FULL)).toEqual({ host: 'smtp.gmail.com', port: 465, user: 'john@bruntsfield.capital', pass: PASS, from: FULL.SMTP_FROM });
-    expect(mailFromEnv({ ...FULL, RAILWAY_ENVIRONMENT_NAME: 'production' })).not.toBeNull();
+    expect(mailFromEnv({ ...FULL, RAILWAY_ENVIRONMENT_NAME: ' production ' })).not.toBeNull();
   });
 
   it('default to port 465 and to the user as the sender', () => {
@@ -41,7 +42,18 @@ describe('the settings', () => {
     expect(mailFromEnv({ ...FULL, RAILWAY_ENVIRONMENT_NAME: 'staging' })).toBeNull();
     expect(mailFromEnv({ ...FULL, RAILWAY_ENVIRONMENT_NAME: 'pr-316' })).toBeNull();
     expect(whyNoMail({ ...FULL, RAILWAY_ENVIRONMENT_NAME: 'staging' })).toMatch(/"staging" environment, and only production sends email/);
-    expect(whyNoMail({})).toBe('this studio has no email settings');
+    expect(whyNoMail({ RAILWAY_ENVIRONMENT_NAME: 'production' })).toBe('this studio has no email settings');
+  });
+
+  it('are nothing unless the environment is exactly production, and unset is not production', () => {
+    for (const name of [undefined, '', 'Production', 'production-copy', 'pr-316 production']) {
+      expect(isProduction({ RAILWAY_ENVIRONMENT_NAME: name })).toBe(false);
+      expect(mailFromEnv({ ...FULL, RAILWAY_ENVIRONMENT_NAME: name })).toBeNull();
+    }
+    expect(isProduction({ RAILWAY_ENVIRONMENT_NAME: ' production ' })).toBe(true);
+    expect(whyNoMail({ ...FULL, RAILWAY_ENVIRONMENT_NAME: undefined })).toBe(
+      'this studio does not say it is production (RAILWAY_ENVIRONMENT_NAME is not set), and only production sends email',
+    );
   });
 });
 

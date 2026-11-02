@@ -49,8 +49,38 @@ example the same Google Workspace sending the website uses), set up by John.
   saying why.
 - **Set the five `SMTP_*` settings on production.** Until then, a founder whose phone did not take
   the notification gets nothing, and the log says the studio has no email settings.
-- Email is sent only on Railway's `production` environment. If production's environment has
-  another name, no email is sent, and the log names the environment it saw.
+- Founders are messaged only on Railway's `production` environment. If production's environment
+  has another name, or none, nobody is messaged, and the log names the environment it saw.
+
+## Changes after review (2 November 2026)
+
+John asked for four changes after reading the pull request.
+
+1. **Only production messages founders.** A message, by phone or by email, goes only when
+   `RAILWAY_ENVIRONMENT_NAME` is exactly `production`. Unset counts as not production. Anywhere
+   else the studio does not even claim a message, and the "Stop these messages" switch is not
+   drawn. Before, staging could have sent the same phone notification as production.
+2. **Each card has its own notification.** Before, every card shared the blocker buzz's tag, so a
+   second card silently replaced the first. Now each card has its own tag, and a new message about
+   the same card replaces the old one and makes the phone alert again.
+3. **A card with no commit, or a run stuck twice on the same commit, still gets its message.** Each
+   message now also has an occasion. A finished card with a commit has none, so it gets one
+   message per commit. Anything else uses the time of the card's last trail entry (or `sentAt` if
+   it has no trail), so each new event on the box is a new message, and the same card sent again
+   is not. `db/014_founder_messages.sql` has not been loaded on production yet; it now also brings
+   an older copy of its table up to date, and is safe to load twice.
+4. **A message lost in a restart is tried again, and one given up is shown to John.** A message that
+   did not go, or was cut off by a restart, is tried again on a heartbeat once ten minutes have
+   passed, three tries in all. A try is made only if the card is still the same version; if it has
+   moved on, the message is marked out of date and not sent. When the third try fails, it is given
+   up, and the next heartbeat's answer lists it in `givenUp` for the box to tell John on Telegram
+   (`docs/factory-cards.md`). The rules stay: only the manifest's founder, never both a
+   notification and an email, and nothing for a founder who stopped messages.
+
+**These messages need no recorded approval.** Rule 4 says nothing external goes without a
+recorded human approval. John made an exception for these (fountainbridge PR #420, FB-289): a
+founder's own notices about their own venture's work, sent only to their own sign-in address and
+phone.
 
 ## Done when
 

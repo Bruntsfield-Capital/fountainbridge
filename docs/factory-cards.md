@@ -111,10 +111,14 @@ the plain parts; John also reads `forJohn.cost` and `forJohn.nextStep` on the ro
 **The founder's message (FB-279).** A `finished`, `stuck` or `sent-back` card of a venture's sends
 that venture's founder one short message, after the card has been kept and the box answered. It goes
 as a notification to the phones the founder turned them on from, or, if none of those took it, as
-an email to the founder's sign-in address. Never both. One message per version of the card: the same
-repository, number, state and `plain.headSha` sent again sends nothing more. The message names the
-venture and what happened, never the card's title, and carries nothing from `forJohn`. Cowgate's
-cards never message anybody, and a founder can stop these messages from the foot of "Needs you".
+an email to the founder's sign-in address. Never both. Only the production studio sends them;
+staging and previews send nothing. A `finished` card sends one message per `plain.headSha`: the
+same card sent again, with new pictures or a longer trail, sends nothing more. A `stuck` or
+`sent-back` card, or a `finished` one with no `headSha`, sends one message each time its last
+`trail` entry is new (or, with no trail, its `sentAt`), so add a trail entry for each new event. The
+message names the venture and what happened, never the card's title, and carries nothing from
+`forJohn`. Each card has its own notification on the phone. Cowgate's cards never message anybody,
+and a founder can stop these messages from the foot of "Needs you".
 
 **Plain parts** (founder-safe, by name): `ref` (up to 40 characters), `title` (needed, up to 300),
 `finishedAt`, `headSha` (the commit the work and its pictures are of), `demo` (true for made-up
@@ -167,6 +171,30 @@ Once a minute. The studio keeps the time from your signed timestamp.
 ```
 
 `box` is optional (`planning-box` when left out): lower-case letters, digits and dashes.
+
+**The answer lists the founder messages the studio gave up on (FB-279).** A heartbeat's `200`
+answer always has `givenUp`, a list. Each entry is a founder message that could not be sent in
+three tries, ten minutes apart:
+
+```json
+{
+  "ok": true,
+  "message": "Heard.",
+  "givenUp": [
+    { "venture": "arca", "repo": "arca", "number": 21, "state": "stuck", "why": "no notification was delivered, and the email could not be sent." }
+  ]
+}
+```
+
+`state` is `finished`, `stuck` or `sent-back`. `why` is a plain sentence, and never an address or
+a secret. There are at most 20 in one answer, and each one is listed once: the studio marks it
+reported as it answers, and the rest come in later answers. With none, `givenUp` is `[]`. Tell John
+about each one on Telegram, because the founder never heard.
+
+Each heartbeat also makes the studio try again, after it has answered, the founder messages that
+did not go: one that nothing could send, or one cut off because the studio restarted. Each gets
+three tries in all. A try is made only if the card the studio holds is still the same; if it has
+moved on, that message is dropped, since the new card makes its own.
 
 **If `planning-box` sends no heartbeat for five minutes** (FB-278), the studio treats its cards as
 out of date. Each card says "The factory hasn't reported since 10:42. These may be out of date.",

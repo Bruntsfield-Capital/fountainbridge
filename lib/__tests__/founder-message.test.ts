@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { cardEmail, cardMessage, isFounderMessage, MESSAGE_STATES } from '../founder-message';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
+import { cardEmail, cardMessage, cardTag, isFounderMessage, MESSAGE_STATES } from '../founder-message';
+import { pushPayload } from '../push-send';
 import { CARD_STATES, type StoredCard } from '../card-store';
 import { storedCard } from './review-fixtures';
 
@@ -22,7 +26,7 @@ describe('the words and the link', () => {
       title: 'ARCA: your team finished something',
       body: 'It is ready for you to look at and decide.',
       url: '/venture/arca/review/arca/21',
-      tag: 'blocker-arca',
+      tag: 'card-arca-arca-21',
     });
   });
 
@@ -58,5 +62,43 @@ describe('the words and the link', () => {
       for (const line of Object.values(card.forJohn)) expect(said).not.toContain(String(line));
       expect(said).not.toContain(card.plain.title);
     }
+  });
+});
+
+describe('each card has its own tag on the phone', () => {
+  it('two cards never share a tag, and neither shares the blocker buzz’s', () => {
+    const first = cardMessage(ARCA, as('finished'));
+    const second = cardMessage(ARCA, { ...as('stuck'), number: 22 });
+    expect(first.tag).not.toBe(second.tag);
+    expect([first.tag, second.tag]).not.toContain(pushPayload(ARCA, 1, null).tag);
+  });
+
+  it('is letters, digits, dashes and underscores only, whatever the repository is called', () => {
+    expect(cardTag('arca', { repo: 'arca marketing/../x', number: 7 })).toBe('card-arca-arca-marketing----x-7');
+  });
+});
+
+describe('the service worker', () => {
+  /** What the phone is asked to show for one push, from public/sw.js itself. */
+  function shown(payload: unknown) {
+    const on: Record<string, (event: unknown) => void> = {};
+    const notes: { title: string; options: Record<string, unknown> }[] = [];
+    const self = {
+      addEventListener: (name: string, fn: (event: unknown) => void) => { on[name] = fn; },
+      registration: { showNotification: async (title: string, options: Record<string, unknown>) => { notes.push({ title, options }); } },
+      location: { origin: 'https://studio.example' },
+    };
+    runInNewContext(readFileSync(join(process.cwd(), 'public/sw.js'), 'utf8'), { self, URL });
+    on.push({ data: { json: () => payload }, waitUntil: () => {} });
+    return notes[0];
+  }
+
+  it('alerts again for a new message about the same card', () => {
+    const note = shown(cardMessage(ARCA, as('stuck')));
+    expect(note.options).toMatchObject({ tag: 'card-arca-arca-21', renotify: true });
+  });
+
+  it('lets the blocker buzz replace itself quietly, as before', () => {
+    expect(shown(pushPayload(ARCA, 2, null)).options).toMatchObject({ tag: 'blocker-arca', renotify: false });
   });
 });

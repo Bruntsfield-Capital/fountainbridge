@@ -23,15 +23,22 @@ export interface Mail {
 }
 
 /**
+ * Whether this studio is production: Railway's `RAILWAY_ENVIRONMENT_NAME` is exactly `production`.
+ * Unset is not production. Only production messages founders (FB-279), so staging, previews and a
+ * studio run on a laptop never send a founder anything, even with every setting copied over.
+ */
+export function isProduction(env: Record<string, string | undefined> = process.env): boolean {
+  return env.RAILWAY_ENVIRONMENT_NAME?.trim() === 'production';
+}
+
+/**
  * The settings, or null when this studio must send no email.
  *
- * Null on any Railway environment but production, even with every setting present: Railway's
- * preview environments copy production's variables (FB-243), and staging and previews must never
- * send email.
+ * Null anywhere but production, even with every setting present: Railway's preview environments
+ * copy production's variables (FB-243), and staging and previews must never send email.
  */
 export function mailFromEnv(env: Record<string, string | undefined> = process.env): MailSettings | null {
-  const railway = env.RAILWAY_ENVIRONMENT_NAME?.trim();
-  if (railway && railway !== 'production') return null;
+  if (!isProduction(env)) return null;
   const host = env.SMTP_HOST?.trim();
   const user = env.SMTP_USER?.trim();
   const pass = env.SMTP_PASS;
@@ -44,9 +51,14 @@ export function mailFromEnv(env: Record<string, string | undefined> = process.en
 
 /** Why `mailFromEnv` gave nothing, in words safe for a log: it names no value but the environment's. */
 export function whyNoMail(env: Record<string, string | undefined> = process.env): string {
-  const railway = env.RAILWAY_ENVIRONMENT_NAME?.trim();
-  if (railway && railway !== 'production') return `this studio runs on Railway's "${railway}" environment, and only production sends email`;
+  if (!isProduction(env)) return `${notProduction(env)}, and only production sends email`;
   return 'this studio has no email settings';
+}
+
+/** Which environment this studio is on, when it is not production, in words safe for a log. */
+export function notProduction(env: Record<string, string | undefined> = process.env): string {
+  const railway = env.RAILWAY_ENVIRONMENT_NAME?.trim();
+  return railway ? `this studio runs on Railway's "${railway}" environment` : 'this studio does not say it is production (RAILWAY_ENVIRONMENT_NAME is not set)';
 }
 
 const LOCAL = new Set(['127.0.0.1', 'localhost', '::1']);
