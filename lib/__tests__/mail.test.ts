@@ -62,15 +62,15 @@ describe('sending', () => {
     server = await fakeSmtp();
     const r = await sendMail(
       { host: '127.0.0.1', port: server.port, user: 'john@bruntsfield.capital', pass: PASS, from: 'Foundry Studio <john@bruntsfield.capital>' },
-      { from: 'Foundry Studio <john@bruntsfield.capital>', to: 'arca.founder@bruntsfield.capital', subject: 'ARCA: your team finished something', text: 'Open it in the studio: https://studio.example/venture/arca/review/arca/21\n' },
+      { from: 'Foundry Studio <john@bruntsfield.capital>', to: 'matthew@bruntsfield.capital', subject: 'ARCA: your team finished something', text: 'Open it in the studio: https://studio.example/venture/arca/review/arca/21\n' },
     );
     expect(r).toBe('sent');
     expect(server.received).toHaveLength(1);
     const [m] = server.received;
     expect(m.auth).toBe('john@bruntsfield.capital');
-    expect(m.to).toEqual(['arca.founder@bruntsfield.capital']);
+    expect(m.to).toEqual(['matthew@bruntsfield.capital']);
     expect(m.data).toMatch(/^From: Foundry Studio <john@bruntsfield\.capital>$/m);
-    expect(m.data).toMatch(/^To: arca\.founder@bruntsfield\.capital$/m);
+    expect(m.data).toMatch(/^To: matthew@bruntsfield\.capital$/m);
     expect(m.data).toMatch(/^Subject: ARCA: your team finished something$/m);
     expect(m.data).toContain('https://studio.example/venture/arca/review/arca/21');
   });

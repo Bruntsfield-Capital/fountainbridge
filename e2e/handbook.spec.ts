@@ -47,7 +47,7 @@ test('handbook is reachable from the studio nav', async ({ page }) => {
  */
 test.describe('the handbook inside a venture (FB-134)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
   });
 
   test('reading a chapter never leaves the venture', async ({ page }) => {
@@ -119,7 +119,7 @@ test.describe('the handbook inside a venture (FB-134)', () => {
  */
 test.describe('a chapter fits the phone it is read on (FB-188)', () => {
   test('no chapter takes the page sideways', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.setViewportSize({ width: 393, height: 851 });
     await page.goto('/venture/arca/handbook');
     const slugs = await page.$$eval('a[href*="/handbook/"]', (els) =>
@@ -133,7 +133,7 @@ test.describe('a chapter fits the phone it is read on (FB-188)', () => {
   });
 
   test('a wide diagram scrolls inside its own box rather than moving the page', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.setViewportSize({ width: 393, height: 851 });
     await page.goto('/venture/arca/handbook/how-to-start');
     const pre = page.locator('pre').first();

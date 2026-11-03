@@ -292,7 +292,7 @@ test.describe('the desk', () => {
  */
 test.describe('the desk streams (FB-157)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
   });
 
   test('there is exactly one prompt bar, and it works', async ({ page }) => {
@@ -319,7 +319,7 @@ test.describe('the desk streams (FB-157)', () => {
  */
 test.describe('the office (FB-139)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/venture/arca');
   });
 
@@ -436,7 +436,7 @@ test.describe('the office (FB-139)', () => {
  */
 test.describe('the venture is alive, or it is not (FB-167)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
   });
 
   for (const route of ['/venture/arca', '/venture/arca/tickets', '/venture/arca/knowledge']) {
@@ -477,7 +477,7 @@ test.describe('the venture is alive, or it is not (FB-167)', () => {
  */
 test.describe('the desk fits on a desk (FB-178)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/venture/arca');
     await expect(page.getByTestId('desk-summary')).toBeVisible();
   });
@@ -534,7 +534,7 @@ test.describe('the desk fits on a desk (FB-178)', () => {
  */
 test.describe('the desk answers Claude Design (FB-182)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/venture/arca');
     await expect(page.getByTestId('desk-summary')).toBeVisible();
   });
@@ -596,7 +596,7 @@ test.describe('the desk answers Claude Design (FB-182)', () => {
  */
 test.describe('the reading column (FB-188)', () => {
   test('is the width the design draws into, not the rail plus the content', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/venture/arca');
     const width = await page.evaluate(() => {
@@ -619,7 +619,7 @@ test.describe('the reading column (FB-188)', () => {
  */
 test.describe('the header’s "Needs you" (FB-149)', () => {
   test('states the desk’s number on a phone, and leads to the list that holds it', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     // The desk's sentence stands down on a phone (FB-160), so it is read at desk width first.
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto('/venture/arca');
@@ -637,7 +637,7 @@ test.describe('the header’s "Needs you" (FB-149)', () => {
   });
 
   test('a narrow window is unaffected — nothing binds below the measure', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.setViewportSize({ width: 1180, height: 900 });
     await page.goto('/venture/arca');
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

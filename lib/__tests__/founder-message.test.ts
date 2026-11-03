@@ -42,9 +42,9 @@ describe('the words and the link', () => {
 
   it('the email is the same message, with the full link and how to stop them', () => {
     const message = cardMessage(ARCA, as('finished'));
-    const email = cardEmail(message, { studioUrl: 'https://studio.example/', venture: ARCA, to: 'arca.founder@bruntsfield.capital', from: 'Foundry Studio <john@bruntsfield.capital>' });
+    const email = cardEmail(message, { studioUrl: 'https://studio.example/', venture: ARCA, to: 'matthew@bruntsfield.capital', from: 'Foundry Studio <john@bruntsfield.capital>' });
     expect(email.subject).toBe(message.title);
-    expect(email.to).toBe('arca.founder@bruntsfield.capital');
+    expect(email.to).toBe('matthew@bruntsfield.capital');
     expect(email.from).toBe('Foundry Studio <john@bruntsfield.capital>');
     expect(email.text).toContain(message.body);
     expect(email.text).toContain('Open it in the studio: https://studio.example/venture/arca/review/arca/21');

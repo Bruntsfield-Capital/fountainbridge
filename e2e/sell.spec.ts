@@ -8,7 +8,7 @@ import { testLogin } from './helpers';
  * that the list and the board both hit their caps.
  */
 const SHOTS = 'e2e/__screenshots__';
-const FOUNDER = 'arca.founder@bruntsfield.capital';
+const FOUNDER = 'matthew@bruntsfield.capital';
 
 test('a founder can answer "who is waiting on me" from the Sell surface alone', async ({ page }) => {
   await testLogin(page, FOUNDER);

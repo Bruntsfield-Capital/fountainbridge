@@ -39,7 +39,7 @@ const { cardStore } = await import('@/lib/card-store-live');
 const { putTestCards } = await import('@/lib/__tests__/review-fixtures');
 
 const JOHN = 'john.gallagher@wealthcx.com';
-const FOUNDER = 'arca.founder@bruntsfield.capital';
+const FOUNDER = 'matthew@bruntsfield.capital';
 const ROSS = 'ross@bruntsfield.capital';
 
 let state: string;

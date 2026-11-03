@@ -16,7 +16,7 @@ import { testLogin } from './helpers';
  * Without E2E_BASE_URL it runs against Playwright's own server, like every other spec.
  */
 
-const FOUNDER_A = 'arca.founder@bruntsfield.capital';
+const FOUNDER_A = 'matthew@bruntsfield.capital';
 const JOHN = 'john.gallagher@wealthcx.com';
 
 /** Every venture in `ventures/` except the example, read the same way the studio reads them. */

@@ -175,15 +175,15 @@ describe('where an event is filed', () => {
 
 describe('telling the founder what happened', () => {
   it('names the person who agreed', () => {
-    expect(narrate(ev({ seq: 2, type: 'approval.granted', actor: human('arca.founder@bruntsfield.capital') })))
-      .toBe('arca.founder@bruntsfield.capital approved it.');
+    expect(narrate(ev({ seq: 2, type: 'approval.granted', actor: human('matthew@bruntsfield.capital') })))
+      .toBe('matthew@bruntsfield.capital approved it.');
   });
 
   it('names both people when a dual decision needed two (FB-271)', () => {
     expect(narrate(ev({
       seq: 2, type: 'approval.granted', actor: human('john@bruntsfield.capital'),
-      data: { proposal_sha: 'sha', first_approver: 'arca.founder@bruntsfield.capital' },
-    }))).toBe('arca.founder@bruntsfield.capital and john@bruntsfield.capital approved it.');
+      data: { proposal_sha: 'sha', first_approver: 'matthew@bruntsfield.capital' },
+    }))).toBe('matthew@bruntsfield.capital and john@bruntsfield.capital approved it.');
   });
 
   it('says who asked, without naming the machinery', () => {

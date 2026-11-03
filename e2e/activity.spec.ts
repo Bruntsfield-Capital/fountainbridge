@@ -104,7 +104,7 @@ test('the administration is not deleted, it is shown to Bruntsfield (FB-080)', a
  */
 test.describe('the feed says what actually happened (FB-096)', () => {
   test('a ticket-only change reads as a request, never as shipped work', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/activity');
     const filing = page.getByTestId('activity-pr-merged').first();
     await expect(filing).toContainText('Card animation polish');
@@ -113,20 +113,20 @@ test.describe('the feed says what actually happened (FB-096)', () => {
   });
 
   test('a change to the product reads as shipped', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/activity');
     await expect(page.getByTestId('activity-feed')).toContainText('shipped');
   });
 
   test('one merge is one row', async ({ page }) => {
     // Every MERGED row was shadowed by a COMMIT row saying the same words.
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/activity');
     await expect(page.getByTestId('activity-feed').getByText('Card animation polish')).toHaveCount(1);
   });
 
   test('the founder’s feed has no housekeeping, and says that it does not', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/activity');
     await expect(page.getByTestId('activity-feed')).not.toContainText('seed: arca-ops');
     await expect(page.getByTestId('activity-hidden')).toContainText('housekeeping');
@@ -140,7 +140,7 @@ test.describe('the feed says what actually happened (FB-096)', () => {
 
   test('a filing whose work later parked says so where the founder asked', async ({ page }) => {
     // "Whatever happened to the tagline fix?" — the answer has to be on the row that raised it.
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/activity');
     await expect(page.getByTestId('activity-parked')).toContainText('needs a person');
   });
@@ -164,7 +164,7 @@ test.describe('an operator can see the budget (FB-083)', () => {
   });
 
   test('a founder never sees it', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/activity');
     await expect(page.getByTestId('github-budget')).toHaveCount(0);
   });
@@ -183,7 +183,7 @@ test.describe('an operator can see the budget (FB-083)', () => {
   });
 
   test('the budget is admin-only, like everything else on this endpoint', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     const res = await page.request.get('/api/readiness');
     expect(res.status()).toBe(403);
     expect(await res.json()).not.toHaveProperty('budget');

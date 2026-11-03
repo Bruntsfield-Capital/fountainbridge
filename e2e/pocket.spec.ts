@@ -111,7 +111,7 @@ test.describe('the pocket studio (FB-138)', () => {
  */
 test.describe('what the pocket studio contains (FB-160)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/venture/arca');
   });
 

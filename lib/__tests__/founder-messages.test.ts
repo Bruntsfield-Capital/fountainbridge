@@ -21,8 +21,8 @@ import { storedCard } from './review-fixtures';
 const SQL = ['001_read_model.sql', '005_push.sql', '012_schema_record.sql', '014_founder_messages.sql']
   .map((f) => readFileSync(join(process.cwd(), 'db', f), 'utf8')).join('\n');
 
-const ARCA = { id: 'arca', name: 'ARCA', founderEmail: 'Arca.Founder@bruntsfield.capital' };
-const ARCA_FOUNDER = 'arca.founder@bruntsfield.capital';
+const ARCA = { id: 'arca', name: 'ARCA', founderEmail: 'Matthew@bruntsfield.capital' };
+const ARCA_FOUNDER = 'matthew@bruntsfield.capital';
 const JOHN = 'john@bruntsfield.capital';
 const ROSS = 'ross@bruntsfield.capital';
 const MAIL: MailSettings = { host: 'smtp.gmail.com', port: 465, user: JOHN, pass: 'x', from: 'Foundry Studio <john@bruntsfield.capital>' };
@@ -294,7 +294,7 @@ describe('exactly once', () => {
 describe('the founder’s switch', () => {
   it('off means nothing is pushed or emailed, and turning it back on does not send old cards', async () => {
     await as('arca', (q) => rememberPhone(q, ARCA_FOUNDER, phone(1)));
-    await as('arca', (q) => setMessagesOff(q, 'ARCA.founder@bruntsfield.capital', true));
+    await as('arca', (q) => setMessagesOff(q, 'MATTHEW@bruntsfield.capital', true));
     const h = harness();
     expect(await messageFounder(h.deps())).toBe('off');
     expect([...h.posted, ...h.mailed]).toEqual([]);
@@ -552,7 +552,7 @@ describe('the schema file, loaded over its first version', () => {
     alter table pushstore.card_messages enable row level security;
     alter table pushstore.card_messages force row level security;
     insert into pushstore.card_messages (venture_id, repo, number, state, head_sha, email, outcome)
-      values ('arca', 'arca', 9, 'stuck', 'sha-9', 'arca.founder@bruntsfield.capital', 'notification');`;
+      values ('arca', 'arca', 9, 'stuck', 'sha-9', 'matthew@bruntsfield.capital', 'notification');`;
   const before = ['001_read_model.sql', '005_push.sql', '012_schema_record.sql'].map((f) => readFileSync(join(process.cwd(), 'db', f), 'utf8')).join('\n');
   const now = readFileSync(join(process.cwd(), 'db', '014_founder_messages.sql'), 'utf8');
 

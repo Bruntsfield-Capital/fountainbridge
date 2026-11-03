@@ -36,7 +36,7 @@ test.describe('monthly budgets for temporary machines (FB-239)', () => {
   });
 
   test('a founder is told plainly that it is not for them', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/admin/machine-budgets');
     await expect(page.getByTestId('machine-budgets-forbidden')).toBeVisible();
     await expect(page.getByTestId('machine-budgets')).toHaveCount(0);

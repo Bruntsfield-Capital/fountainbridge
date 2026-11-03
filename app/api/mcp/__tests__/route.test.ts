@@ -42,7 +42,7 @@ const VENTURE = {
   id: 'arca',
   name: 'ARCA',
   repos: ['arca', 'arca-marketing'],
-  founderEmail: 'arca.founder@bruntsfield.capital',
+  founderEmail: 'matthew@bruntsfield.capital',
   departments: [{ id: 'build', repo: 'arca' }],
 };
 const OTHER = { id: 'the-reset', name: 'The Reset', repos: ['the-reset'], founderEmail: 'ross@bruntsfield.capital' };

@@ -136,7 +136,7 @@ test.describe('what the studio can prove about an approval', () => {
  */
 test.describe('a price the studio could not read (FB-214)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/venture/arca/approvals/arca/unreadable-price');
   });
 

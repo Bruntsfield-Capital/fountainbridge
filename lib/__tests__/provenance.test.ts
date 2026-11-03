@@ -5,7 +5,7 @@ import { attestationFor } from '../approval-attestation';
 const SECRET = 'studio-signing-secret';
 const ID = 'send-launch-email';
 const SHA = 'abc123';
-const APPROVER = 'arca.founder@bruntsfield.capital';
+const APPROVER = 'matthew@bruntsfield.capital';
 const REPO = 'wealthcx01/arca';
 // Sign via the SAME function the studio uses — re-deriving the formula in a test is how a verifier
 // and its signer drift apart while CI stays green.
@@ -84,9 +84,9 @@ describe('a grant cannot be replayed from another venture', () => {
   it('returns the CANONICAL approver, not the raw field', () => {
     // Anyone holding a copy of a valid grant could otherwise rewrite `approver` to a case variant
     // that folds identically — still verifying, while displaying a name the signature never covered.
-    const v = verifyGrant(REPO, ID, SHA, grant({ approver: 'ARCA.Founder@Bruntsfield.Capital' }), SECRET);
+    const v = verifyGrant(REPO, ID, SHA, grant({ approver: 'Matthew@Bruntsfield.Capital' }), SECRET);
     expect(v.provenance).toBe('attested');
-    expect(v.approver).toBe('arca.founder@bruntsfield.capital');
+    expect(v.approver).toBe('matthew@bruntsfield.capital');
   });
 });
 
@@ -155,7 +155,7 @@ describe('the signature comparison itself', () => {
     // normalisation was pinned, the verifier's was not. A real consequence — a grant the studio
     // itself issued for a mixed-case Google address would read as unverified, and the founder would
     // be told to treat a genuine approval as forged.
-    const g = { approver: '  ARCA.Founder@Bruntsfield.Capital ', proposal_sha: SHA, attestation: sign(), granted_at: 't' };
+    const g = { approver: '  Matthew@Bruntsfield.Capital ', proposal_sha: SHA, attestation: sign(), granted_at: 't' };
     expect(verifyGrant(REPO, ID, SHA, g, SECRET).provenance).toBe('attested');
   });
 

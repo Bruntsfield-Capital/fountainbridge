@@ -262,7 +262,7 @@ Answers 200 with every press not yet collected, across every venture, oldest fir
     }
   ],
   "signOffs": [
-    { "id": "…", "venture": "arca", "repo": "arca", "number": 21, "action": "accept", "by": "arca.founder@bruntsfield.capital", "byJohn": false, "note": "", "seenHeadSha": "4f2c9e1", "pressedAt": "2026-11-04T09:12:00.000Z" }
+    { "id": "…", "venture": "arca", "repo": "arca", "number": 21, "action": "accept", "by": "matthew@bruntsfield.capital", "byJohn": false, "note": "", "seenHeadSha": "4f2c9e1", "pressedAt": "2026-11-04T09:12:00.000Z" }
   ],
   "more": false
 }

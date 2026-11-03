@@ -84,7 +84,7 @@ describe('the repo is part of the signed message', () => {
  * grant it can verify.
  */
 describe('dual: both must approve, and one person is one person (FB-271)', () => {
-  const FOUNDER = 'arca.founder@bruntsfield.capital';
+  const FOUNDER = 'matthew@bruntsfield.capital';
   const ADMIN = 'john@bruntsfield.capital';
   const OTHER_ADMIN = 'second.admin@bruntsfield.capital';
   const ADMINS = [ADMIN, OTHER_ADMIN];
@@ -106,7 +106,7 @@ describe('dual: both must approve, and one person is one person (FB-271)', () =>
   it('the founder and an admin make a pair, in either order', () => {
     expect(isDualPair(FOUNDER, ADMIN, dual, ADMINS)).toBe(true);
     expect(isDualPair(ADMIN, FOUNDER, dual, ADMINS)).toBe(true);
-    expect(isDualPair(' ARCA.Founder@Bruntsfield.Capital ', ADMIN, dual, ADMINS)).toBe(true);
+    expect(isDualPair(' Matthew@Bruntsfield.Capital ', ADMIN, dual, ADMINS)).toBe(true);
   });
 
   it('the same address twice is never a pair, even when it is both founder and admin', () => {

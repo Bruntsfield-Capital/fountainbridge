@@ -346,7 +346,7 @@ describe('a heartbeat and the founder messages that did not go (FB-279)', () => 
   const GAVE_UP = { venture: 'arca', repo: 'arca', number: 21, state: 'stuck', why: 'this studio has no email settings, so no email was sent.' };
 
   it('answers with the given-up messages, in exactly the fields the box reads', async () => {
-    const givenUp = vi.fn(async () => [{ ...GAVE_UP, email: 'arca.founder@bruntsfield.capital' }]);
+    const givenUp = vi.fn(async () => [{ ...GAVE_UP, email: 'matthew@bruntsfield.capital' }]);
     const { deps } = setUp({ givenUp });
     expect(await send(deps, { kind: 'heartbeat' })).toEqual({ status: 200, body: { ok: true, message: 'Heard.', givenUp: [GAVE_UP] } });
     expect(givenUp).toHaveBeenCalledTimes(1);
@@ -390,7 +390,7 @@ describe('what the door writes in the log', () => {
 });
 
 describe('presses, through the door (FB-276)', () => {
-  const FOUNDER = 'arca.founder@bruntsfield.capital';
+  const FOUNDER = 'matthew@bruntsfield.capital';
 
   /** The door with ARCA's #21 and THE RESET's #5 already sent, as the box sends them. */
   async function withCards() {

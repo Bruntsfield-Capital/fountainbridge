@@ -19,7 +19,7 @@ import { putTestCards, storedCard, testPng } from './review-fixtures';
 
 const SCHEMA = ['001_read_model.sql', '008_factory_cards.sql', '009_factory_presses.sql', '010_press_lapses.sql', '011_follow_ups.sql'].map((f) => readFileSync(join(process.cwd(), 'db', f), 'utf8'));
 
-const ARCA = { id: 'arca', name: 'ARCA', repos: ['arca', 'arca-marketing'], departments: [], founderEmail: 'arca.founder@bruntsfield.capital' } as unknown as VentureSummary;
+const ARCA = { id: 'arca', name: 'ARCA', repos: ['arca', 'arca-marketing'], departments: [], founderEmail: 'matthew@bruntsfield.capital' } as unknown as VentureSummary;
 const RESET = { id: 'the-reset', name: 'THE RESET', repos: ['thereset-platform'], departments: [], founderEmail: 'ross@bruntsfield.capital' } as unknown as VentureSummary;
 // No live preview check, and no presses file: the test rig's answers.
 const RIG = { E2E_TEST_LOGIN: '1', PRS_FIXTURE_DIR: 'none' };
@@ -157,7 +157,7 @@ describe('the store keeps what the door hands it', () => {
 });
 
 describe('the Review screen, from the store', () => {
-  const founder = { email: 'arca.founder@bruntsfield.capital', isJohn: false, admins: ['john.gallagher@wealthcx.com'] };
+  const founder = { email: 'matthew@bruntsfield.capital', isJohn: false, admins: ['john.gallagher@wealthcx.com'] };
 
   it("ARCA's founder gets ARCA's card, with the pictures the box sent and none of John's parts", async () => {
     const view = await loadReview(ARCA, 'arca', 21, founder, store, RIG);
@@ -193,7 +193,7 @@ describe('the Review screen, from the store', () => {
 describe("a venture's newest cards, for the lists (FB-277)", () => {
   it('come newest first, with the presses on the version each is about, and only that venture\'s', async () => {
     await store.putCard('arca', { ...storedCard('arca', 22), sentAt: '2026-12-02T00:00:00.000Z' });
-    await store.press('arca', { repo: 'arca', number: 21, action: 'accept', by: 'arca.founder@bruntsfield.capital', byJohn: false, note: '', seenHeadSha: null });
+    await store.press('arca', { repo: 'arca', number: 21, action: 'accept', by: 'matthew@bruntsfield.capital', byJohn: false, note: '', seenHeadSha: null });
     const got = await store.newest('arca', 50);
     expect(got.map((c) => `${c.card.repo}#${c.card.number}`)).toEqual(['arca#22', 'arca#20', 'arca#21']);
     expect(got.find((c) => c.card.number === 21)?.presses.map((p) => p.action)).toEqual(['accept']);
@@ -225,7 +225,7 @@ describe("the factory's own cards, under _factory (FB-277)", () => {
     for (const v of ['arca', 'the-reset']) {
       expect(await store.card(v, 'cowgate', 40)).toBeNull();
       expect((await store.newest(v, 500)).some((c) => c.card.repo === 'cowgate')).toBe(false);
-      expect(await store.press(v, { repo: 'cowgate', number: 40, action: 'stop', by: 'arca.founder@bruntsfield.capital', byJohn: false, note: '', seenHeadSha: null })).toBe('no-card');
+      expect(await store.press(v, { repo: 'cowgate', number: 40, action: 'stop', by: 'matthew@bruntsfield.capital', byJohn: false, note: '', seenHeadSha: null })).toBe('no-card');
       const raw = await scoped(v, (q) => q.query<{ venture_id: string }>("select venture_id from factorystore.cards where repo = 'cowgate' union all select venture_id from factorystore.presses where repo = 'cowgate'"));
       expect(raw.rows).toEqual([]);
     }

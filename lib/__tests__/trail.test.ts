@@ -31,7 +31,7 @@ const event = (over: Partial<ActiveGraphEvent> = {}): ActiveGraphEvent => ({
   id: 'send-1',
   type: 'approval.granted',
   at: '2026-08-24T09:00:00.000Z',
-  actor: { kind: 'human', id: 'arca.founder@bruntsfield.capital' },
+  actor: { kind: 'human', id: 'matthew@bruntsfield.capital' },
   ...over,
 });
 

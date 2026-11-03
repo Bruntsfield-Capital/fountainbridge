@@ -401,7 +401,7 @@ test.describe('a surface link opens that surface (FB-213)', () => {
  */
 test.describe('follow it to the result (FB-184)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
   });
 
   test('work with a reported preview says so, with no link, directly above the decision', async ({ page }) => {

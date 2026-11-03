@@ -143,7 +143,7 @@ test.describe('what happened', () => {
  */
 test.describe('what happened streams (FB-158)', () => {
   test('the shell is gone once the record is in, and nothing is duplicated', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/venture/arca/activity');
     await expect(page.getByTestId('activity-summary')).toBeVisible();
     await expect(page.getByTestId('activity-waiting')).toHaveCount(0);
@@ -162,7 +162,7 @@ test.describe('what happened streams (FB-158)', () => {
  */
 test.describe('the record is written for the founder (FB-180)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/venture/arca/activity');
     await expect(page.getByTestId('activity-feed')).toBeVisible();
   });

@@ -18,7 +18,7 @@ const { cardStore } = await import('@/lib/card-store-live');
 const { putTestCards, testPng } = await import('@/lib/__tests__/review-fixtures');
 
 const SECRET = 'route-test-secret';
-const FOUNDER = 'arca.founder@bruntsfield.capital';
+const FOUNDER = 'matthew@bruntsfield.capital';
 const JOHN = 'john.gallagher@wealthcx.com';
 
 /** What Next.js's `notFound()` throws: the same 404 as an address with no route behind it. */

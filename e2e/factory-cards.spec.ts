@@ -17,7 +17,7 @@ import { putReviewCards } from './review-cards';
  *   E2E_BASE_URL=http://127.0.0.1:3100 npx playwright test e2e/factory-cards.spec.ts
  */
 
-const FOUNDER_A = 'arca.founder@bruntsfield.capital';
+const FOUNDER_A = 'matthew@bruntsfield.capital';
 const JOHN = 'john.gallagher@wealthcx.com';
 
 const ARCA_FINISHED = 'The auctions view';
