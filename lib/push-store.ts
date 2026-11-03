@@ -22,6 +22,7 @@ export const SQL = {
   remember: `insert into pushstore.subscriptions (venture_id, email, endpoint, p256dh, auth)
              values (current_setting('app.venture_id', true), $1, $2, $3, $4)`,
   phones: 'select endpoint, p256dh, auth from pushstore.subscriptions order by created_at',
+  phonesOf: 'select endpoint, p256dh, auth from pushstore.subscriptions where email = $1 order by created_at',
   lastSeen: 'select waiting from pushstore.queue_watch',
   see: `insert into pushstore.queue_watch (venture_id, waiting, seen_at)
         values (current_setting('app.venture_id', true), $1, now())
@@ -44,9 +45,20 @@ export async function forgetPhone(q: Querier, endpoint: string): Promise<void> {
 }
 
 export async function phones(q: Querier): Promise<PushTarget[]> {
-  const { rows } = await q.query<{ endpoint: string; p256dh: string; auth: string }>(SQL.phones);
-  return rows.map((r) => ({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }));
+  return targets(await q.query<PhoneRow>(SQL.phones));
 }
+
+/**
+ * The phones one person turned notifications on from, under this venture (FB-279). A card message is
+ * the founder's alone, and John's phone, subscribed while he looks at the venture, is not theirs.
+ */
+export async function phonesOf(q: Querier, email: string): Promise<PushTarget[]> {
+  return targets(await q.query<PhoneRow>(SQL.phonesOf, [email.toLowerCase()]));
+}
+
+interface PhoneRow { endpoint: string; p256dh: string; auth: string }
+const targets = ({ rows }: { rows: PhoneRow[] }): PushTarget[] =>
+  rows.map((r) => ({ endpoint: r.endpoint, keys: { p256dh: r.p256dh, auth: r.auth } }));
 
 /**
  * Record what is waiting now, and return what was waiting last time — `null` if the studio has never

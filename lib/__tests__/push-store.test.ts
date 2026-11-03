@@ -157,6 +157,7 @@ describe('nothing else ever pushes', () => {
   it('sendWebPush is called from exactly one file', () => {
     // The design's rule is one event. The easiest way to break it is a well-meant second caller —
     // "your lane finished", a digest — so any new caller anywhere in the app fails this test.
+    // FB-279's card messages are sent from lib/push-send.ts too, beside the blocker buzz.
     const roots = ['app', 'lib', 'components'];
     const callers: string[] = [];
     const walk = (dir: string) => {

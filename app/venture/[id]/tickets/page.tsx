@@ -31,6 +31,8 @@ import { loadTrail } from '@/lib/trail-load';
 import { ageMs, studioNow } from '@/lib/when';
 import { CARDS_UNREAD, ventureCardRows, viewerOf } from '@/lib/factory-work-load';
 import { cardGroup, cardSentence, cardTicketId, withoutCarded } from '@/lib/factory-work';
+import { founderMessagesLine } from '@/lib/founder-message-live';
+import { MessagesSwitch, MessagesUnread } from '@/components/MessagesSwitch';
 
 /**
  * Tickets (FB-129) — the list, the ticket, and the decision, on one screen.
@@ -250,58 +252,75 @@ export default async function TicketsPage({
   const selected = resolveSelected(surfaceRows, filterTickets(surfaceRows, activeFilter), typeof t === 'string' ? t : null);
 
   return (
-    <TicketsView
-      ventureId={venture.id}
-      ventureName={venture.name}
-      rows={surfaceRows}
-      surfaceName={surfaceName}
-      surfaceKey={surface ?? null}
-      filter={activeFilter}
-      // The RESOLVED key, not the raw query. The client used to resolve it again with different
-      // fallbacks, so the trail loaded here could belong to a different ticket than the one rendered.
-      selectedId={selected ? rowKey(selected) : null}
-      // FB-185: did the founder OPEN a ticket, or is the screen just showing the first row?
-      //
-      // `selectedId` cannot answer that — it falls back to the first row of the filter, so it is
-      // non-null almost always. On a phone the two cases want opposite layouts: the list when
-      // nobody has opened anything, the ticket when somebody has. Only the URL knows which.
-      opened={typeof t === 'string' && t.length > 0}
-      // FB-130: STREAMED, not awaited.
-      //
-      // Blocking the page on it took the tickets screen from usable to **23 seconds** on ARCA's real
-      // backlog — measured, three loads, against a desk that costs 6.5s. The trail is supplementary:
-      // a founder came here to read a ticket and decide on it, and neither needs the history. So the
-      // list and the ticket render immediately and the history arrives when it arrives.
-      //
-      // Skipped entirely for a row with no ticket file: nothing here can match a `repo#number` id.
-      trail={
-        selected?.item ? (
-          <Suspense fallback={<TrailPending />}>
-            <TrailFor venture={venture} row={selected} attention={attention} filedByRepo={filedByRepo} />
-          </Suspense>
-        ) : null
-      }
-      // FB-184: where to see the result. Streamed too, because a preview is opened before it is
-      // linked to, and that is a network round trip the ticket itself must not wait for. Nothing is
-      // drawn while it is checked: a line that changed its mind would be worse than one that arrives.
-      follow={
-        selected?.item ? (
-          <Suspense fallback={null}>
-            <FollowFor venture={venture} row={selected} attention={attention} filedByRepo={filedByRepo} approvals={approvalsRead.approvals} />
-          </Suspense>
-        ) : null
-      }
-      refs={Object.fromEntries(refs)}
-      filedBranches={Object.fromEntries(filedBranch)}
-      org={process.env.GITHUB_ORG ?? 'wealthcx01'}
-      errors={[
-        ...data.lanes.filter((l) => l.error).map((l) => l.error as string),
-        ...attention.errors,
-        ...(approvalsRead.error ? [approvalsRead.error] : []),
-        ...(cards.unread ? [CARDS_UNREAD] : []),
-      ]}
-    />
+    <>
+      <TicketsView
+        ventureId={venture.id}
+        ventureName={venture.name}
+        rows={surfaceRows}
+        surfaceName={surfaceName}
+        surfaceKey={surface ?? null}
+        filter={activeFilter}
+        // The RESOLVED key, not the raw query. The client used to resolve it again with different
+        // fallbacks, so the trail loaded here could belong to a different ticket than the one rendered.
+        selectedId={selected ? rowKey(selected) : null}
+        // FB-185: did the founder OPEN a ticket, or is the screen just showing the first row?
+        //
+        // `selectedId` cannot answer that — it falls back to the first row of the filter, so it is
+        // non-null almost always. On a phone the two cases want opposite layouts: the list when
+        // nobody has opened anything, the ticket when somebody has. Only the URL knows which.
+        opened={typeof t === 'string' && t.length > 0}
+        // FB-130: STREAMED, not awaited.
+        //
+        // Blocking the page on it took the tickets screen from usable to **23 seconds** on ARCA's real
+        // backlog — measured, three loads, against a desk that costs 6.5s. The trail is supplementary:
+        // a founder came here to read a ticket and decide on it, and neither needs the history. So the
+        // list and the ticket render immediately and the history arrives when it arrives.
+        //
+        // Skipped entirely for a row with no ticket file: nothing here can match a `repo#number` id.
+        trail={
+          selected?.item ? (
+            <Suspense fallback={<TrailPending />}>
+              <TrailFor venture={venture} row={selected} attention={attention} filedByRepo={filedByRepo} />
+            </Suspense>
+          ) : null
+        }
+        // FB-184: where to see the result. Streamed too, because a preview is opened before it is
+        // linked to, and that is a network round trip the ticket itself must not wait for. Nothing is
+        // drawn while it is checked: a line that changed its mind would be worse than one that arrives.
+        follow={
+          selected?.item ? (
+            <Suspense fallback={null}>
+              <FollowFor venture={venture} row={selected} attention={attention} filedByRepo={filedByRepo} approvals={approvalsRead.approvals} />
+            </Suspense>
+          ) : null
+        }
+        refs={Object.fromEntries(refs)}
+        filedBranches={Object.fromEntries(filedBranch)}
+        org={process.env.GITHUB_ORG ?? 'wealthcx01'}
+        errors={[
+          ...data.lanes.filter((l) => l.error).map((l) => l.error as string),
+          ...attention.errors,
+          ...(approvalsRead.error ? [approvalsRead.error] : []),
+          ...(cards.unread ? [CARDS_UNREAD] : []),
+        ]}
+      />
+      {/* FB-279: where every message lands, so the switch for them is here. Streamed: the list never
+          waits for it. */}
+      {activeFilter === 'needs' ? (
+        <Suspense fallback={null}>
+          <MessagesLine venture={venture} viewerEmail={session.user.email} />
+        </Suspense>
+      ) : null}
+    </>
   );
+}
+
+/** The founder's switch for the messages about their team's work. Draws nothing for anyone else. */
+async function MessagesLine({ venture, viewerEmail }: { venture: VentureSummary; viewerEmail: string }) {
+  const line = await founderMessagesLine(venture, viewerEmail);
+  if (!line) return null;
+  if ('unread' in line) return <MessagesUnread />;
+  return <MessagesSwitch ventureId={venture.id} initialOff={line.off} email={line.email} byEmail={line.byEmail} />;
 }
 
 

@@ -247,6 +247,7 @@ export const COPY_MODULES = [
   'lib/brief.ts',
   'lib/composer.ts',
   'lib/firstrun.ts',
+  'lib/founder-message.ts', // FB-279: what a founder's phone and inbox are told
   'lib/glossary.ts',
   'lib/meta-ads.ts', // FB-248: the ads page's statuses and caveats are written here
   'lib/provenance.ts',
