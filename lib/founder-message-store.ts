@@ -45,8 +45,10 @@ export const MESSAGE_SQL = {
           on conflict do nothing
           returning 1`,
   record: `update pushstore.card_messages set outcome = $6, why = $7 where ${KEY}`,
+  // Only a claim still `pending`: one this request holds, never one another request has finished.
+  fault: `update pushstore.card_messages set outcome = 'none', why = $6 where ${KEY} and outcome = 'pending'`,
   // `tried_at::text` keeps its microseconds, so `take` can match it exactly.
-  due: `select repo, number, state, head_sha, occasion, email, attempts, tried_at::text as tried_at
+  due: `select repo, number, state, head_sha, occasion, email, attempts, outcome, why, tried_at::text as tried_at
           from pushstore.card_messages
          where outcome in ('pending', 'none') and tried_at < now() - interval '${RETRY_AFTER_MINUTES} minutes'
          order by tried_at limit $1`,
@@ -97,11 +99,22 @@ export async function recordCardMessage(q: Querier, key: MessageKey, outcome: Ex
   await q.query(MESSAGE_SQL.record, [...keyParams(key), outcome, why]);
 }
 
+/**
+ * A claim that a fault stopped before it could be sent (FB-290): not sent, with a plain reason, so it
+ * is tried again and, if it is given up, John is told the real reason. Only while still `pending`.
+ */
+export async function faultCardMessage(q: Querier, key: MessageKey, why: string): Promise<void> {
+  await q.query(MESSAGE_SQL.fault, [...keyParams(key), why]);
+}
+
 /** A claim waiting to be tried again: not sent, or left half-sent when the studio stopped. */
 export interface DueMessage {
   key: MessageKey;
   email: string;
   attempts: number;
+  /** `none`: its last try finished, and `why` says why nothing went. `pending`: a restart cut it off. */
+  outcome: 'pending' | 'none';
+  why: string | null;
   /** Exactly as the database holds it, to take it only if nobody else has. */
   triedAt: string;
 }
@@ -113,6 +126,8 @@ export async function dueCardMessages(q: Querier, limit = RETRY_LIMIT): Promise<
     key: { repo: String(r.repo), number: Number(r.number), state: r.state as MessageState, headSha: String(r.head_sha), occasion: String(r.occasion) },
     email: String(r.email),
     attempts: Number(r.attempts),
+    outcome: r.outcome === 'none' ? 'none' : 'pending',
+    why: r.why == null ? null : String(r.why),
     triedAt: String(r.tried_at),
   }));
 }
