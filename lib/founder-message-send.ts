@@ -6,7 +6,7 @@ import type { Poster, VapidKeys } from './webpush';
 import { pushCardMessage } from './push-send';
 import { cardEmail, cardMessage, isFounderMessage, messageKey, type MessageState } from './founder-message';
 import {
-  claimCardMessage, dueCardMessages, giveUpCardMessage, MAX_ATTEMPTS, messagesOff, recordCardMessage, takeCardMessage,
+  claimCardMessage, dueCardMessages, faultCardMessage, giveUpCardMessage, MAX_ATTEMPTS, messagesOff, recordCardMessage, takeCardMessage,
   type DueMessage, type MessageKey, type MessageOutcome,
 } from './founder-message-store';
 import { sendMail, type MailSettings } from './mail';
@@ -21,7 +21,7 @@ import { sendMail, type MailSettings } from './mail';
  *   3. The message is claimed before anything is sent, so only one request ever sends it, and a
  *      founder who stopped these messages gets nothing.
  *   4. A notification to the founder's own phones.
- *   5. Only if no phone took it: the same words by email.
+ *   5. Only if no phone took it, or the phones could not be read: the same words by email.
  *   6. What happened is written on the claim, and, if nothing went, why.
  *
  * A message that did not go, or that was left `pending` because the studio stopped between the
@@ -55,6 +55,7 @@ export async function messageFounder(deps: MessageDeps): Promise<MessageResult> 
   const { venture, card } = deps;
   const say = sayer(deps, `${card.repo}#${card.number} ${card.state}`);
   let outcome: MessageOutcome | null = null;
+  let held: MessageKey | null = null;
   try {
     if (!isFounderMessage(venture.id, card)) return 'not-a-message';
     const founder = founderAddress(venture);
@@ -69,6 +70,7 @@ export async function messageFounder(deps: MessageDeps): Promise<MessageResult> 
       say('the founder has stopped these messages, so nothing was sent.');
       return 'off';
     }
+    held = key;
 
     const sent = await deliver(deps, card, founder, say);
     outcome = sent.outcome;
@@ -77,6 +79,7 @@ export async function messageFounder(deps: MessageDeps): Promise<MessageResult> 
     return sent.outcome;
   } catch (e) {
     sayFault(say, outcome, e);
+    if (outcome === null && held) await noteFault(deps, held);
     return outcome ?? 'none';
   }
 }
@@ -121,16 +124,18 @@ async function retryOne(deps: RetryDeps, founder: string, due: DueMessage): Prom
   const { key } = due;
   const say = sayer(deps, `${key.repo}#${key.number} ${key.state}`);
   let outcome: MessageOutcome | null = null;
+  let held = false;
   try {
     if (due.attempts >= MAX_ATTEMPTS) {
-      // Its last try was cut off before it could say what happened.
-      const why = 'the studio stopped before it finished sending it';
+      // Its last try ended in a fault, which wrote why (FB-290), or was cut off before it could say.
+      const why = due.outcome === 'none' && due.why ? due.why : 'the studio stopped before it finished sending it';
       if (!(await deps.run((q) => giveUpCardMessage(q, due, why)))) return 'taken';
       say(`gave up after ${MAX_ATTEMPTS} tries: ${why}.`);
       return 'given-up';
     }
     const attempt = await deps.run((q) => takeCardMessage(q, due));
     if (attempt === null) return 'taken';
+    held = true;
 
     const card = await deps.card(key.repo, key.number);
     if (!card || !isFounderMessage(deps.venture.id, card) || !sameKey(messageKey(card), key) || due.email !== founder) {
@@ -156,7 +161,20 @@ async function retryOne(deps: RetryDeps, founder: string, due: DueMessage): Prom
     return sent.outcome;
   } catch (e) {
     sayFault(say, outcome, e);
+    if (outcome === null && held) await noteFault(deps, key);
     return outcome ?? 'none';
+  }
+}
+
+/** What a claim held by this request says when a fault stopped it before anything went. */
+export const FAULT_WHY = 'a fault stopped the studio while it was sending it (the studio’s log says which)';
+
+/** Write `FAULT_WHY` on a claim this request still holds. Never throws: the fault is already logged. */
+async function noteFault(deps: Pick<SendDeps, 'run'>, key: MessageKey) {
+  try {
+    await deps.run((q) => faultCardMessage(q, key, FAULT_WHY));
+  } catch {
+    // The database itself is the fault: the claim stays `pending`, and is tried again all the same.
   }
 }
 
@@ -175,10 +193,20 @@ async function deliver(
 ): Promise<{ outcome: MessageOutcome; why: string | null }> {
   const { venture } = deps;
   const keys = deps.keys;
-  const pushed = keys ? await deps.run((q) => pushCardMessage(q, venture, card, founder, keys, { post: deps.post })) : null;
-  if (pushed && pushed.sent > 0) return { outcome: 'notification', why: null };
-
-  const noPush = !keys ? 'this studio cannot send notifications' : 'no notification was delivered';
+  let noPush = 'this studio cannot send notifications';
+  if (keys) {
+    noPush = 'no notification was delivered';
+    try {
+      const pushed = await deps.run((q) => pushCardMessage(q, venture, card, founder, keys, { post: deps.post }));
+      if (pushed.sent > 0) return { outcome: 'notification', why: null };
+    } catch (e) {
+      // Only reading the phones can throw (`sendWebPush` never does, and a phone that can't be
+      // forgotten is only counted), so no phone has it, and the email below can't make it two.
+      // On 2 November production had no phone table at all, and this stopped every email (FB-290).
+      say(`the founder’s phones could not be read: ${(e as Error)?.message ?? 'unknown fault'}`);
+      noPush = 'the founder’s phones could not be read';
+    }
+  }
   const studioUrl = deps.studioUrl?.startsWith('https://') ? deps.studioUrl : null;
   let why: string;
   if (!deps.mail) {
