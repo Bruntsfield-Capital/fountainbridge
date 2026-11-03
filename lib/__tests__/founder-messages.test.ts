@@ -8,7 +8,7 @@ import {
   CLAIM_OUTCOMES, MESSAGE_SQL, claimCardMessage, dueCardMessages, reportGivenUp, setMessagesOff, takeCardMessage,
 } from '../founder-message-store';
 import { MESSAGE_STATES, messageKey } from '../founder-message';
-import { messageFounder, retryFounderMessages, type MessageDeps, type RetryDeps } from '../founder-message-send';
+import { FAULT_WHY, messageFounder, retryFounderMessages, type MessageDeps, type RetryDeps } from '../founder-message-send';
 import { b64url, type PushTarget } from '../webpush';
 import type { Mail, MailSettings } from '../mail';
 import type { StoredCard } from '../card-store';
@@ -154,6 +154,41 @@ describe('a finished ARCA card', () => {
     expect(await messageFounder(h.deps({ keys: null }))).toBe('email');
     expect(h.posted).toEqual([]);
     expect(h.mailed).toHaveLength(1);
+  });
+
+  // FB-290: production had no phone table on 2 November (db/005_push.sql never run there), and the
+  // dry run's message stopped at the phones instead of going by email.
+  it('when the founder’s phones cannot be read, goes by email, once, and says why in the log', async () => {
+    await db.exec('reset role; drop table pushstore.subscriptions cascade; set role foundry_studio');
+    const h = harness();
+    expect(await messageFounder(h.deps())).toBe('email');
+    expect(h.posted).toEqual([]);
+    expect(h.mailed).toHaveLength(1);
+    expect(h.mailed[0]).toMatchObject({ to: ARCA_FOUNDER });
+    expect(h.logged).toEqual([
+      '[founder-messages] arca arca#21 finished: the founder’s phones could not be read: relation "pushstore.subscriptions" does not exist',
+      '[founder-messages] arca arca#21 finished: the founder was sent an email.',
+    ]);
+    expect(await outcomes('arca')).toEqual([{ state: 'finished', outcome: 'email' }]);
+  });
+
+  it('when they cannot be read and there is no email either, the reason says both', async () => {
+    await db.exec('reset role; drop table pushstore.subscriptions cascade; set role foundry_studio');
+    const h = harness();
+    expect(await messageFounder(h.deps({ mail: null }))).toBe('none');
+    const why = (await as('arca', (q) => q.query<{ why: string }>('select why from pushstore.card_messages'))).rows[0].why;
+    expect(why).toBe('the founder’s phones could not be read, and this studio has no email settings, so no email was sent.');
+  });
+
+  it('a gone phone that cannot be forgotten does not undo a phone that took it: no email as well', async () => {
+    await as('arca', (q) => rememberPhone(q, ARCA_FOUNDER, phone(1)));
+    await as('arca', (q) => rememberPhone(q, ARCA_FOUNDER, phone(2)));
+    await db.exec('reset role; revoke delete on pushstore.subscriptions from foundry_studio; set role foundry_studio');
+    const h = harness();
+    const post: MessageDeps['post'] = async (url) => { h.posted.push(url); return { status: url.endsWith('phone-2') ? 410 : 201 }; };
+    expect(await messageFounder(h.deps({ post }))).toBe('notification');
+    expect(h.posted).toHaveLength(2);
+    expect(h.mailed).toEqual([]);
   });
 });
 
@@ -378,6 +413,29 @@ describe('a message that did not go is tried again on a heartbeat', () => {
       { repo: 'arca', number: 21, state: 'finished', why: 'this studio cannot send notifications, and this studio has no email settings, so no email was sent.' },
     ]);
     expect(await as('arca', (q) => reportGivenUp(q))).toEqual([]);
+  });
+
+  it('a try that a fault stops writes a plain reason, and a message given up that way is reported with it', async () => {
+    const h = harness();
+    const broken = { keys: null, send: async () => { throw new Error('the mail server hung up'); } };
+    expect(await messageFounder(h.deps(broken))).toBe('none');
+    expect(h.mailed).toEqual([]);
+    const row = async () => (await as('arca', (q) => q.query<{ outcome: string; why: string }>('select outcome, why from pushstore.card_messages'))).rows;
+    expect(await row()).toEqual([{ outcome: 'none', why: FAULT_WHY }]);
+    for (let n = 2; n <= 3; n += 1) {
+      await later();
+      expect(await h.retry(undefined, broken)).toEqual(['none']);
+    }
+    await later();
+    expect(await h.retry(undefined, broken)).toEqual(['given-up']);
+    expect(await as('arca', (q) => reportGivenUp(q))).toEqual([{ repo: 'arca', number: 21, state: 'finished', why: FAULT_WHY }]);
+    expect(h.logged.join('\n')).toContain('no message was sent: the mail server hung up');
+  });
+
+  it('a fault never rewrites a message another request has finished', async () => {
+    await messageFounder(harness().deps({ keys: null }));
+    await as('arca', (q) => q.query(MESSAGE_SQL.fault, ['arca', 21, 'finished', card().headSha, '', 'should not land']));
+    expect(await as('arca', (q) => q.query('select outcome, why from pushstore.card_messages')).then((r) => r.rows)).toEqual([{ outcome: 'email', why: null }]);
   });
 
   it('a later try that works sends it, and only then', async () => {

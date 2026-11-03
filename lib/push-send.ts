@@ -82,7 +82,11 @@ async function pushToEach(q: Querier, targets: PushTarget[], message: unknown, k
   for (const phone of targets) {
     const r = await sendWebPush(phone, message, keys, { post });
     if (r === 'sent') out.sent += 1;
-    else if (r === 'gone') { await forgetPhone(q, phone.endpoint); out.removed += 1; }
+    else if (r === 'gone') {
+      // A phone that can't be forgotten now is tried, and forgotten, next time. Never thrown: by now
+      // an earlier phone may have the message, and a throw would look as if nothing went (FB-290).
+      try { await forgetPhone(q, phone.endpoint); out.removed += 1; } catch { out.failed += 1; }
+    }
     else out.failed += 1;
   }
   return out;
