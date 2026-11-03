@@ -11,7 +11,7 @@ import { testLogin } from './helpers';
  */
 test.describe('what your venture knows (FB-106)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
   });
 
   test('the studio offers the way in, on every screen', async ({ page }) => {
@@ -84,7 +84,7 @@ test.describe('what your venture knows (FB-106)', () => {
  */
 test.describe('memory (FB-133)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
   });
 
   test('the table names the source of every document, in the founder’s terms', async ({ page }) => {
@@ -194,7 +194,7 @@ test.describe('memory (FB-133)', () => {
  */
 test.describe('memory streams (FB-157)', () => {
   test('there is exactly one Add control, and it is the live one', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/venture/arca/knowledge');
     await expect(page.getByTestId('knowledge-file')).toHaveCount(1);
     await expect(page.getByTestId('knowledge-submit')).toHaveCount(1);
@@ -216,7 +216,7 @@ test.describe('memory streams (FB-157)', () => {
  */
 test.describe('handing over a document (FB-140)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/venture/arca/knowledge');
   });
 
@@ -277,7 +277,7 @@ test.describe('handing over a document (FB-140)', () => {
  */
 test.describe('what belongs on the Memory screen (FB-181)', () => {
   test.beforeEach(async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/venture/arca/knowledge');
     await expect(page.getByTestId('memory-table')).toBeVisible();
   });

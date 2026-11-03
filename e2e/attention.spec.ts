@@ -239,8 +239,8 @@ test.describe('the walkthrough’s words (FB-100)', () => {
 
   test('the studio does not introduce the founder to themselves', async ({ page }) => {
     // "Founder: John Gallagher" while signed in AS the founder. The manifest is right; this is
-    // presentation. arca.founder@bruntsfield.capital is ARCA's named founder in the manifest.
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    // presentation. matthew@bruntsfield.capital is ARCA's named founder in the manifest.
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/venture/arca');
     await expect(page.getByTestId('board-founder')).toContainText('Founder: you');
   });

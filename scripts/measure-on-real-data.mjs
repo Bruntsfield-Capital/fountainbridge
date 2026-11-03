@@ -52,7 +52,7 @@ import { mkdir } from 'node:fs/promises';
 
 const BASE = process.env.BASE_URL?.trim() || 'http://localhost:3200';
 /** ARCA's founder. The rule's view: an admin sees extra banners a founder never does. */
-const EMAIL = process.env.EMAIL?.trim() || 'arca.founder@bruntsfield.capital';
+const EMAIL = process.env.EMAIL?.trim() || 'matthew@bruntsfield.capital';
 const ROUTES = (process.env.ROUTES?.trim() || '/venture/arca').split(',').map((r) => r.trim());
 const OUT = process.env.OUT_DIR?.trim() || 'e2e/__screenshots__';
 

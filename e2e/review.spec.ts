@@ -24,7 +24,7 @@ import { answerPress, collect, putReviewCards, reportHeartbeat, reportTelegram, 
  * answers. The line file is still written, and still read here, because journey 5 checks it.
  */
 
-const FOUNDER = 'arca.founder@bruntsfield.capital';
+const FOUNDER = 'matthew@bruntsfield.capital';
 const JOHN = 'john.gallagher@wealthcx.com';
 const PRESSES = join(stateFolder(), 'presses.jsonl');
 const SHOTS = 'e2e/__screenshots__';

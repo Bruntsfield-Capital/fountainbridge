@@ -16,7 +16,7 @@ import { storedCard } from './review-fixtures';
  */
 
 const JOHN = 'john.gallagher@wealthcx.com';
-const FOUNDER = 'arca.founder@bruntsfield.capital';
+const FOUNDER = 'matthew@bruntsfield.capital';
 const ARCA = { email: FOUNDER, name: 'Sam' };
 const founder: Viewer = { isJohn: false, name: namer(FOUNDER, [JOHN], ARCA) };
 const john: Viewer = { isJohn: true, name: namer(JOHN, [JOHN], ARCA) };

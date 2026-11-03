@@ -15,7 +15,7 @@ const SECRET = 'test-secret';
 const REPO = 'wealthcx01/arca-marketing';
 const ID = 'september-note';
 const SHA = 'abc123';
-const WHO = 'arca.founder@bruntsfield.capital';
+const WHO = 'matthew@bruntsfield.capital';
 
 const AT = '2026-09-03T02:20:56.399Z';
 const NOTE = 'Not this month.';

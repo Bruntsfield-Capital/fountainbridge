@@ -22,7 +22,7 @@ import { storedCard } from './review-fixtures';
  */
 
 const JOHN = 'john.gallagher@wealthcx.com';
-const FOUNDER = 'arca.founder@bruntsfield.capital';
+const FOUNDER = 'matthew@bruntsfield.capital';
 const ROSS = 'ross@bruntsfield.capital';
 const RIG = {
   E2E_TEST_LOGIN: '1',

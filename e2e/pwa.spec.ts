@@ -47,7 +47,7 @@ test.describe('the pocket studio installs (FB-141)', () => {
   });
 
   test('a signed-in page still registers it', async ({ page }) => {
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/venture/arca');
     await expect(page.locator('link[rel="manifest"]')).toHaveCount(1);
     await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveCount(1);

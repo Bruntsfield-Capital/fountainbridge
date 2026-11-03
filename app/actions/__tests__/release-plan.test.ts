@@ -34,7 +34,7 @@ const VENTURE = {
   id: 'arca',
   name: 'ARCA',
   repos: ['arca', 'arca-marketing'],
-  founderEmail: 'arca.founder@bruntsfield.capital',
+  founderEmail: 'matthew@bruntsfield.capital',
   departments: [
     { id: 'build', repo: 'arca' },
     { id: 'sell', repo: 'arca-marketing' },

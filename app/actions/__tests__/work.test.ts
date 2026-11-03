@@ -37,7 +37,7 @@ vi.mock('@/lib/work', () => ({ acceptability: (...a: unknown[]) => acceptability
 const { acceptWork } = await import('../work');
 
 const JOHN = 'john.gallagher@wealthcx.com';
-const FOUNDER = 'arca.founder@bruntsfield.capital';
+const FOUNDER = 'matthew@bruntsfield.capital';
 const VENTURE = { id: 'arca', name: 'ARCA', repos: ['arca'], founderEmail: FOUNDER };
 const OTHER = { id: 'the-reset', name: 'THE RESET', repos: ['the-reset'], founderEmail: 'ross@bruntsfield.capital' };
 const WORK = { repo: 'arca', number: 7, title: 'A change', headSha: '0123456789abcdef' };

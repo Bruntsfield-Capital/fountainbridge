@@ -24,7 +24,7 @@ test.describe('where the studio spent its time (FB-151)', () => {
 
   test('a founder is told plainly that it is not for them', async ({ page }) => {
     // Not a 404 and not a silent redirect: a founder who types the path deserves a sentence.
-    await testLogin(page, 'arca.founder@bruntsfield.capital');
+    await testLogin(page, 'matthew@bruntsfield.capital');
     await page.goto('/admin/timing');
     await expect(page.getByTestId('timing-forbidden')).toBeVisible();
     await expect(page.getByTestId('timing-table')).toHaveCount(0);

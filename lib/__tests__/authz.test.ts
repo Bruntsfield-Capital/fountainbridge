@@ -65,7 +65,7 @@ describe('canAccessVenture', () => {
 
 describe('founderAddress', () => {
   it('trims and lowercases the founder address, and gives null when there is none', () => {
-    expect(founderAddress({ founderEmail: '  ARCA.Founder@Bruntsfield.Capital ' })).toBe('arca.founder@bruntsfield.capital');
+    expect(founderAddress({ founderEmail: '  Matthew@Bruntsfield.Capital ' })).toBe('matthew@bruntsfield.capital');
     expect(founderAddress({ founderEmail: '   ' })).toBeNull();
     expect(founderAddress({ founderEmail: null })).toBeNull();
   });
@@ -73,8 +73,8 @@ describe('founderAddress', () => {
 
 describe('isFounder', () => {
   it('matches the founder whatever the case or spacing, and nobody when the manifest names none', () => {
-    expect(isFounder({ founderEmail: 'Arca.Founder@bruntsfield.capital' }, ' ARCA.founder@Bruntsfield.Capital ')).toBe(true);
-    expect(isFounder({ founderEmail: 'arca.founder@bruntsfield.capital' }, 'john@bruntsfield.capital')).toBe(false);
+    expect(isFounder({ founderEmail: 'Matthew@bruntsfield.capital' }, ' MATTHEW@Bruntsfield.Capital ')).toBe(true);
+    expect(isFounder({ founderEmail: 'matthew@bruntsfield.capital' }, 'john@bruntsfield.capital')).toBe(false);
     expect(isFounder({ founderEmail: null }, '')).toBe(false);
     expect(isFounder({ founderEmail: '  ' }, '  ')).toBe(false);
   });

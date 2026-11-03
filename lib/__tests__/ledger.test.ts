@@ -18,7 +18,7 @@ const row = (over: Partial<LedgerRow> = {}): LedgerRow => ({
   name: 'ARCA',
   status: 'active',
   founderName: 'Founder',
-  founderEmail: 'arca.founder@bruntsfield.capital',
+  founderEmail: 'matthew@bruntsfield.capital',
   needsThem: 0,
   underway: 0,
   engine: { state: 'running' as const, text: 'Your team checked in 4 minutes ago.' },

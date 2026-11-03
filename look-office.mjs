@@ -4,7 +4,7 @@ const OUT=process.argv[2] ?? 'office-before';
 const b=await chromium.launch();
 const p=await (await b.newContext({viewport:{width:1440,height:1000}})).newPage();
 await p.goto(`${BASE}/login`,{waitUntil:'domcontentloaded'});
-await p.getByTestId('password-email').fill('arca.founder@bruntsfield.capital');
+await p.getByTestId('password-email').fill('matthew@bruntsfield.capital');
 await p.getByTestId('password-password').fill(process.env.FOUNDER_PW.trim());
 await p.getByTestId('password-submit').click();
 await p.waitForURL(u=>!u.pathname.startsWith('/login'),{timeout:30000});

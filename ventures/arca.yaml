@@ -25,13 +25,12 @@ founder:
   # is the approval_matrix below, not this field.
   name: Founder
   github_login: wealthcx01
-  # The founder account, deliberately SEPARATE from John's Bruntsfield admin address (FB-090).
-  # Both john@ and john.gallagher@ are in STUDIO_ADMIN_EMAILS, so signing in with either shows the
-  # Bruntsfield view — every venture, the activity page, repository health, the wiring warnings.
-  # Useful for running the studio; useless for judging what a founder actually experiences.
-  # This address is in no admin list, so it sees ARCA and nothing else — the same shape of access
-  # THE RESET's founder has there. Shared Bruntsfield Workspace until spin-out (D3) — never @gmail.com.
-  workspace_email: arca.founder@bruntsfield.capital
+  # Matthew's own Google account (FB-294, John, 3 November 2026). It was arca.founder@, but that is
+  # an alias on Matthew's account, and Google sign-in only accepts the account's own address. Founder
+  # notices go here. This address must stay out of STUDIO_ADMIN_EMAILS: an admin's sign-off on the
+  # Review screen counts as John's Approve. Shared Bruntsfield Workspace until spin-out (D3), never
+  # @gmail.com.
+  workspace_email: matthew@bruntsfield.capital
 
 approval_matrix:
   - change_class: product-visible

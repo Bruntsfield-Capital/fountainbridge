@@ -21,8 +21,8 @@ work shows inside each venture, where the founder already looks:
 - John gets the same cards and buttons in the studio as on Telegram. A press in one place goes
   through the same path as a press in the other, so the two never disagree.
 
-The demo runs on ARCA, the test-bed venture. Its founder account,
-`arca.founder@bruntsfield.capital`, is in no admin list, so it sees ARCA only. John holds it.
+The demo runs on ARCA, the test-bed venture. Its founder is Matthew, signing in with Google as
+`matthew@bruntsfield.capital`. That address is in no admin list, so it sees ARCA only.
 THE RESET follows later.
 
 ## Who it is for

@@ -19,7 +19,7 @@ import { putTestCards, storedCard } from './review-fixtures';
 const SCHEMA = ['001_read_model.sql', '008_factory_cards.sql', '009_factory_presses.sql', '010_press_lapses.sql', '011_follow_ups.sql']
   .map((f) => readFileSync(join(process.cwd(), 'db', f), 'utf8'));
 
-const FOUNDER = 'arca.founder@bruntsfield.capital';
+const FOUNDER = 'matthew@bruntsfield.capital';
 const ROSS = 'ross@bruntsfield.capital';
 const JOHN = 'john.gallagher@wealthcx.com';
 const ROOM: Room = { limit: 20, bytes: 56 * 1024, size: (p) => Buffer.byteLength(JSON.stringify(p)) };

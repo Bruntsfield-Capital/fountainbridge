@@ -7,7 +7,7 @@ pull request, with John's approval, because `harness/` is a protected path.
 **The test copy** is a fresh copy of the studio for each run, with its own throwaway database on
 the planning box. It reads the test fixtures, not GitHub. People sign in through the test sign-in
 door (`E2E_TEST_LOGIN` and its secret). Founder A is ARCA's founder,
-`arca.founder@bruntsfield.capital`. Founder B is THE RESET's, Ross (`ross@bruntsfield.capital`),
+`matthew@bruntsfield.capital`. Founder B is THE RESET's, Ross (`ross@bruntsfield.capital`),
 here as a fixture only. John is the address in `STUDIO_ADMIN_EMAILS`.
 
 **Recorded** means the studio's server accepted it. In the test copy, each decision and press is

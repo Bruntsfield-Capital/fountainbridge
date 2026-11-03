@@ -16,8 +16,8 @@ import { putTestCards, storedCard } from './review-fixtures';
  * `press-store.test.ts`; the session and venture checks before these are in the server action.
  */
 
-const ARCA = { id: 'arca', name: 'ARCA', repos: ['arca'], departments: [], founderEmail: 'arca.founder@bruntsfield.capital' } as unknown as VentureSummary;
-const FOUNDER: Presser = { email: 'arca.founder@bruntsfield.capital', isJohn: false };
+const ARCA = { id: 'arca', name: 'ARCA', repos: ['arca'], departments: [], founderEmail: 'matthew@bruntsfield.capital' } as unknown as VentureSummary;
+const FOUNDER: Presser = { email: 'matthew@bruntsfield.capital', isJohn: false };
 const JOHN: Presser = { email: 'john.gallagher@wealthcx.com', isJohn: true };
 
 let store: CardStore;

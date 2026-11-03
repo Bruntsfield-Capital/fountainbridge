@@ -63,7 +63,7 @@ The software factory builds and checks the studio the way it does the website. I
 - **Build identity:** `GET /build-id` answers `FACTORY_RUNTIME_CANDIDATE` when it is set,
   otherwise the Git commit.
 - **Signing in:** at `/login`, type the address in the "Test email" box and press "Test sign in".
-  ARCA's founder is `arca.founder@bruntsfield.capital`; John is `john.gallagher@wealthcx.com`.
+  ARCA's founder is `matthew@bruntsfield.capital`; John is `john.gallagher@wealthcx.com`.
 - **Journeys:** `harness/END-TO-END.md`. Journeys 1 and 2 are `e2e/journeys.spec.ts`; run it
   against a running copy with `E2E_BASE_URL=http://127.0.0.1:<port> npx playwright test e2e/journeys.spec.ts`.
   Journeys 4 and 5 (the Review screen) are `e2e/review.spec.ts`; run it the same way, with

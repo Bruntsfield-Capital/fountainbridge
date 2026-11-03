@@ -69,11 +69,11 @@ describe('every send is linked from somewhere a founder looks', () => {
       committedAt: null,
       grantedAt: null,
       approver: null,
-      refusal: { refusedBy: 'arca.founder@bruntsfield.capital', at: '2026-09-03T09:00:00.000Z', note: 'Not this week.' },
+      refusal: { refusedBy: 'matthew@bruntsfield.capital', at: '2026-09-03T09:00:00.000Z', note: 'Not this week.' },
     };
     expect(linked([refused]).has(pageOf(refused))).toBe(true);
     const [row] = buildFeed({ activity: [], runs: [], approvals: [refused] }).items;
     // Named by the person who refused, not "Someone".
-    expect(row.text).toMatch(/^arca\.founder@bruntsfield\.capital sent back:/);
+    expect(row.text).toMatch(/^matthew@bruntsfield\.capital sent back:/);
   });
 });

@@ -37,7 +37,7 @@ const { founderMessenger, founderMessagesLine } = await import('../founder-messa
 
 const ARCA: VentureSummary = {
   id: 'arca', name: 'ARCA', description: null, status: 'active', founderName: 'Founder',
-  founderEmail: 'Arca.Founder@bruntsfield.capital', repos: ['arca'], approvalMatrix: [], vpsHost: null, departments: [],
+  founderEmail: 'Matthew@bruntsfield.capital', repos: ['arca'], approvalMatrix: [], vpsHost: null, departments: [],
 };
 
 let smtp: FakeSmtp;
@@ -82,7 +82,7 @@ describe('founderMessenger', () => {
     await message.onCard('arca', storedCard('arca', 21));
     await message.onCard('arca', storedCard('arca', 21));
     expect(smtp.received).toHaveLength(1);
-    expect(smtp.received[0].to).toEqual(['arca.founder@bruntsfield.capital']);
+    expect(smtp.received[0].to).toEqual(['matthew@bruntsfield.capital']);
     expect(smtp.received[0].data).toContain('https://studio.example/venture/arca/');
   });
 
@@ -108,7 +108,7 @@ describe('founderMessenger', () => {
     await later();
     await founderMessenger(env(), [ARCA], cards)!.retry();
     expect(smtp.received).toHaveLength(1);
-    expect(smtp.received[0].to).toEqual(['arca.founder@bruntsfield.capital']);
+    expect(smtp.received[0].to).toEqual(['matthew@bruntsfield.capital']);
   });
 
   it('one never sent is given up after three tries, and reported once, with its venture', async () => {
@@ -126,12 +126,12 @@ describe('founderMessenger', () => {
 
 describe('founderMessagesLine', () => {
   it('draws the founder’s switch on production, and nothing anywhere else', async () => {
-    expect(await founderMessagesLine(ARCA, 'arca.founder@bruntsfield.capital', env())).toEqual({ off: false, email: 'arca.founder@bruntsfield.capital', byEmail: true });
+    expect(await founderMessagesLine(ARCA, 'matthew@bruntsfield.capital', env())).toEqual({ off: false, email: 'matthew@bruntsfield.capital', byEmail: true });
     // Phone notifications set up too, so only the environment can be what draws nothing.
     const phones = { VAPID_PUBLIC_KEY: 'not-a-real-public-key', VAPID_PRIVATE_KEY: 'not-a-real-private-key' };
-    expect(await founderMessagesLine(ARCA, 'arca.founder@bruntsfield.capital', env({ ...phones, SMTP_HOST: undefined }))).toMatchObject({ byEmail: false });
+    expect(await founderMessagesLine(ARCA, 'matthew@bruntsfield.capital', env({ ...phones, SMTP_HOST: undefined }))).toMatchObject({ byEmail: false });
     for (const name of ['staging', undefined]) {
-      expect(await founderMessagesLine(ARCA, 'arca.founder@bruntsfield.capital', env({ ...phones, RAILWAY_ENVIRONMENT_NAME: name }))).toBeNull();
+      expect(await founderMessagesLine(ARCA, 'matthew@bruntsfield.capital', env({ ...phones, RAILWAY_ENVIRONMENT_NAME: name }))).toBeNull();
     }
   });
 });

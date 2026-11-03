@@ -100,7 +100,7 @@ export function studioTestEnv({ scale, failReads = '' } = {}) {
     // for 'e2e-founder-password-not-for-production' — minted with scripts/mint-password-login.mjs
     // and safe to commit precisely because it is a hash of a test-only password.
     STUDIO_PASSWORD_LOGINS:
-      'arca.founder@bruntsfield.capital=scrypt:16384:8:1:WOJHurNFM0_Pg9TJPpclNA:9hY2bijcoZlJ0eYUaNDtoQg-KLQ9v7ZyWjuX21SPIB8',
+      'matthew@bruntsfield.capital=scrypt:16384:8:1:WOJHurNFM0_Pg9TJPpclNA:9hY2bijcoZlJ0eYUaNDtoQg-KLQ9v7ZyWjuX21SPIB8',
     AUTH_SECRET: 'e2e-test-secret-not-for-production',
     AUTH_TRUST_HOST: 'true',
     GOOGLE_CLIENT_ID: 'e2e-dummy',

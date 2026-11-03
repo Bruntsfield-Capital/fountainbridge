@@ -9,8 +9,8 @@ by the factory, signed off on its Review screen by ARCA's founder, and approved 
 
 ## What to do
 
-Signed in as `arca.founder@bruntsfield.capital` (FB-090), which is in no admin list and sees ARCA
-only. John holds it. ARCA needs:
+Signed in with Google as Matthew, ARCA's founder, `matthew@bruntsfield.capital` (FB-294; it was
+arca.founder@ until 3 November). That address is in no admin list and sees ARCA only. ARCA needs:
 
 - **its lane kept paused** (FB-264), so the factory is the only engine on ARCA;
 - **working preview environments.** These work: every ARCA pull request since 8 October has had

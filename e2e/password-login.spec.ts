@@ -7,7 +7,7 @@ import { boxOf, inTopDownOrder } from './helpers';
 // server-side, same as Google.
 
 const SHOTS = 'e2e/__screenshots__';
-const EMAIL = 'arca.founder@bruntsfield.capital';
+const EMAIL = 'matthew@bruntsfield.capital';
 const PASSWORD = 'e2e-founder-password-not-for-production';
 
 test('the login page offers the password form when accounts are configured', async ({ page }) => {

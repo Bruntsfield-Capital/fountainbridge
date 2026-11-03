@@ -63,7 +63,7 @@ describe('a phone belongs to one venture', () => {
   it('a venture sees its own phones and nobody else’s', async () => {
     const mine = phone(1);
     const theirs = phone(2);
-    await as('arca', (q) => rememberPhone(q, 'arca.founder@bruntsfield.capital', mine));
+    await as('arca', (q) => rememberPhone(q, 'matthew@bruntsfield.capital', mine));
     await as('the-reset', (q) => rememberPhone(q, 'ross@bruntsfield.capital', theirs));
 
     expect((await as('arca', phones)).map((p) => p.endpoint)).toEqual([mine.endpoint]);
