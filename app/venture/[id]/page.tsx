@@ -15,7 +15,6 @@ import { boardState, type VentureWiring } from '@/lib/firstrun';
 import { FirstRun, BoardUnreadable } from '@/components/FirstRun';
 import { departmentBudgets, type BudgetDisclosure } from '@/lib/budgets';
 import { ageRuns, engineState, type RunReport } from '@/lib/runreports';
-import { MOVING_CARD } from '@/lib/tickets-view';
 import { ageMs, stampAgeMs } from '@/lib/when';
 import { buildOffice } from '@/lib/office';
 import { lastSend } from '@/lib/sends';
@@ -33,6 +32,7 @@ import { timed } from '@/lib/timing';
 import { CARDS_UNREAD, ventureCardRows, viewerOf } from '@/lib/factory-work-load';
 import { cardHref, metaLine, stuckNames, withoutCarded, type CardRow } from '@/lib/factory-work';
 import type { WaitingItem } from '@/components/WaitingQueue';
+import { MOVING_CARD } from '@/lib/tickets-view';
 
 // Venture lanes & tickets (FB-006). Scoping is enforced HERE, server-side: a session that can't
 // access this venture never triggers a ticket fetch (CLAUDE.md #6 — isolation is not UI-only).
