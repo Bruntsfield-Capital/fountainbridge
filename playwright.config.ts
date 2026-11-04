@@ -57,6 +57,6 @@ export default defineConfig({
     port: PORT,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
-    env: { ...studioTestEnv({ scale: SCALE, failReads: process.env.E2E_FAIL_READS ?? '' }), FACTORY_RUNTIME_STATE: STATE },
+    env: { ...studioTestEnv({ scale: SCALE, failReads: process.env.E2E_FAIL_READS ?? '', factoryBuilt: process.env.STUDIO_FACTORY_BUILT ?? '' }), FACTORY_RUNTIME_STATE: STATE },
   },
 });

@@ -14,6 +14,7 @@ import type { VentureSummary } from '@/lib/ventures';
 import { filterTickets, parseFilter, resolveSelected, rowKey, type TicketRow, onSurface, resolveSurface } from '@/lib/tickets-view';
 import { type ActiveGraphApproval } from '@/lib/approvals';
 import { engineState, type RunReport } from '@/lib/runreports';
+import { builtByFactory } from '@/lib/factory-built';
 import { ticketProgress } from '@/lib/ticket-progress';
 import { sendRows, sendSurface } from '@/lib/needs-you';
 
@@ -135,8 +136,14 @@ export default async function TicketsPage({
   // FB-178: the desk's board carried "what is happening to this ticket" and the desk no longer has
   // a board, so it comes here — the only list of tickets a founder now has. `ventureRuns` is cached
   // per request (FB-157), so the ticket detail below reading it again costs nothing.
-  const runsForProgress = await ventureRuns(venture).catch(() => NO_RUNS_FOR_PROGRESS);
-  const engineForProgress = engineState(runsForProgress.checkIns);
+  //
+  // FB-295: a venture the factory builds has no machine of its own, so no runs and no check-ins are
+  // read for it. Its rows are told by its factory cards instead.
+  const factory = builtByFactory(venture.id);
+  const runsForProgress = factory ? NO_RUNS_FOR_PROGRESS : await ventureRuns(venture).catch(() => NO_RUNS_FOR_PROGRESS);
+  const engineForProgress = factory
+    ? { state: 'running' as const, text: '', ageMinutes: null, lastSeen: null }
+    : engineState(runsForProgress.checkIns);
   const nowForProgress = studioNow();
 
   const rows: TicketRow[] = [];

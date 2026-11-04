@@ -15,6 +15,7 @@ import { boardState, type VentureWiring } from '@/lib/firstrun';
 import { FirstRun, BoardUnreadable } from '@/components/FirstRun';
 import { departmentBudgets, type BudgetDisclosure } from '@/lib/budgets';
 import { ageRuns, engineState, type RunReport } from '@/lib/runreports';
+import { builtByFactory, factoryLine } from '@/lib/factory-built';
 import { ageMs, stampAgeMs } from '@/lib/when';
 import { buildOffice } from '@/lib/office';
 import { lastSend } from '@/lib/sends';
@@ -157,6 +158,7 @@ async function Desk({
       .map(async (d) => [d.id, await checkedDoor(d.launch!.url)] as const),
   ).then((pairs) => Object.fromEntries(pairs));
 
+  const factory = builtByFactory(venture.id);
   const [data, health, approvalsRead, runsRead, cardsRead] = await Promise.all([
     timed('desk: your backlog', () => loadVentureTickets(venture, { refresh: refreshing }), venture.id),
     timed('desk: repository health', () => loadVentureHealth(venture, { refresh: refreshing }), venture.id),
@@ -164,9 +166,12 @@ async function Desk({
     // queueing against each other for the same eight concurrent slots.
     timed('desk: your approvals', () => ventureApprovals(venture), venture.id)
       .catch((): ActiveGraphApproval[] => []),
-    timed('desk: what your team did', () => ventureRuns(venture), venture.id)
-      .then((r) => ({ runs: r, degraded: false }))
-      .catch(() => ({ runs: noRuns, degraded: true })),
+    // FB-295: a venture the factory builds has no machine of its own to read.
+    factory
+      ? Promise.resolve({ runs: noRuns, degraded: false })
+      : timed('desk: what your team did', () => ventureRuns(venture), venture.id)
+        .then((r) => ({ runs: r, degraded: false }))
+        .catch(() => ({ runs: noRuns, degraded: true })),
     // FB-277: the factory's cards, as this viewer may read them. Shared with the rail.
     timed('desk: the factory\'s cards', () => ventureCardRows(venture, viewerOf(email, venture)), venture.id),
   ]);
@@ -264,7 +269,12 @@ async function Desk({
 
   // Both lists (FB-139): a run report is a check-in, and heartbeats are only written when a wake
   // finds nothing to work — so heartbeats alone read a busy machine as one that never started.
-  const engine = engineState(runs.checkIns, now);
+  //
+  // FB-295: for a venture the factory builds, the factory's line instead: whether it is reporting,
+  // and what it last added.
+  const engine = factory
+    ? factoryLine(venture.name, cardRows, cardsRead.quiet, now.getTime())
+    : engineState(runs.checkIns, now);
 
   // FB-139: the office, from what the box already publishes. An in-flight run report IS "this agent
   // is working right now", the heartbeat is "the machine is alive", and the attention queue is the
@@ -510,6 +520,7 @@ async function Desk({
       runsTotal={runs.total}
       engine={engine}
       office={office}
+      factoryBuilt={factory}
     />
   );
 }
