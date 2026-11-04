@@ -13,6 +13,7 @@ import { FactoryQuiet } from './FactoryQuiet';
 import { howLongMs } from '@/lib/when';
 import { isUnnumbered } from '@/lib/ticket-ids';
 import type { ReactNode } from 'react';
+import { degradedNextStep, type DegradedGroup } from '@/lib/desk';
 import {
   DEFAULT_FILTER, FILTER_LABEL, TICKET_FILTERS, countTickets, decisionOrder, decisionPosition,
   filterTickets, nextDecision, provenFact, resolveSelected, rowKey, ticketsSummary, type TicketFilter,
@@ -53,6 +54,7 @@ export function TicketsView({
   filedBranches = {},
   org,
   errors = [],
+  degraded = [],
   surfaceName = null,
   surfaceKey = null,
 }: {
@@ -108,6 +110,8 @@ export function TicketsView({
   filedBranches?: Record<string, string>;
   org: string;
   errors?: string[];
+  /** The same faults grouped by cause (FB-297), for saying what failed and whether it clears. */
+  degraded?: DegradedGroup[];
 }) {
   const router = useRouter();
   const [decided, setDecided] = useState<ReadonlySet<string>>(new Set());
@@ -221,8 +225,20 @@ export function TicketsView({
         <p className="card muted" data-testid="tickets-degraded" style={{ fontSize: 'var(--fs-body-sm)', maxWidth: 'var(--content-narrow)' }}>
           <Mark />
           {panel === 'unreadable'
-            ? 'The studio could not read this venture’s tickets just now, so it cannot show you the list. Nothing is lost from your venture’s records, and this clears on its own.'
+            ? 'The studio could not read this venture’s tickets just now, so it cannot show you the list. Nothing is lost from your venture’s records.'
             : 'Part of this venture could not be read, so the list may be short. Nothing is lost from your venture’s records.'}
+          {/* FB-297: what failed and where, the desk's words, and whether it clears by itself. */}
+          {degraded.length ? (
+            <>
+              {degraded.map((g) => (
+                <span key={g.cause} data-testid="tickets-degraded-cause" style={{ display: 'block', marginTop: '0.3rem' }}>
+                  {g.cause}
+                  {g.where.length ? <> <span className="mono">({g.where.join(', ')})</span></> : null}
+                </span>
+              ))}
+              <span style={{ display: 'block', marginTop: '0.3rem' }}>{degradedNextStep(degraded)}</span>
+            </>
+          ) : null}
         </p>
       ) : null}
 

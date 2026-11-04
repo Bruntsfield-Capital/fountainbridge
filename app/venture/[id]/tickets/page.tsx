@@ -33,6 +33,7 @@ import { CARDS_UNREAD, ventureCardRows, viewerOf } from '@/lib/factory-work-load
 import { cardGroup, cardSentence, cardTicketId, withoutCarded } from '@/lib/factory-work';
 import { founderMessagesLine } from '@/lib/founder-message-live';
 import { MessagesSwitch, MessagesUnread } from '@/components/MessagesSwitch';
+import { degradedGroups } from '@/lib/desk';
 
 /**
  * Tickets (FB-129) — the list, the ticket, and the decision, on one screen.
@@ -303,6 +304,13 @@ export default async function TicketsPage({
           ...(approvalsRead.error ? [approvalsRead.error] : []),
           ...(cards.unread ? [CARDS_UNREAD] : []),
         ]}
+        // FB-297: the same faults, grouped by cause and naming the repository, as the desk shows them.
+        degraded={degradedGroups([
+          ...data.lanes.filter((l) => l.error).map((l) => ({ where: l.repo, message: l.error as string })),
+          ...attention.errors.map((message) => ({ where: null, message })),
+          ...(approvalsRead.error ? [{ where: null, message: approvalsRead.error }] : []),
+          ...(cards.unread ? [{ where: null, message: CARDS_UNREAD }] : []),
+        ])}
       />
       {/* FB-279: where every message lands, so the switch for them is here. Streamed: the list never
           waits for it. */}
