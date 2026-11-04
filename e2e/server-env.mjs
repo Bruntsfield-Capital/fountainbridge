@@ -30,7 +30,7 @@ const backlog = (scale, source, committed) => (scale ? `${scale}/${source}` : co
  *   `failReads`: which reads to fail on purpose (FB-137); empty by default.
  * @returns {Record<string, string>}
  */
-export function studioTestEnv({ scale, failReads = '' } = {}) {
+export function studioTestEnv({ scale, failReads = '', factoryBuilt = '' } = {}) {
   return {
     E2E_TEST_LOGIN: '1',
     E2E_TEST_LOGIN_SECRET: 'e2e-playwright-shared-secret',
@@ -60,6 +60,10 @@ export function studioTestEnv({ scale, failReads = '' } = {}) {
     // checked by eye and in CI rather than only when a code host is having a bad day. Empty by
     // default; `e2e/degraded.spec.ts` runs a second server with it set.
     E2E_FAIL_READS: failReads,
+    // FB-295: which ventures the factory builds. None by default, because the ARCA fixtures are an
+    // old machine's records and most suites test those screens. `e2e/factory-built.spec.ts` runs
+    // a server with it set to `arca`.
+    STUDIO_FACTORY_BUILT: factoryBuilt,
     // FB-133: the recurring work shown under the corpus on the Memory screen. Without this the
     // gate would reach GitHub for it, which is both slow and a network dependency the UI gate is
     // built to avoid — and it would render the "could not be read" state on every run.

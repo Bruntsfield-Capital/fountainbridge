@@ -3,6 +3,7 @@ import { RailNav } from './RailNav';
 import { formatMoney } from '@/lib/budgets';
 import { toneColor } from '@/lib/status';
 import { railWords, type RailData } from '@/lib/rail';
+import { builtByFactory } from '@/lib/factory-built';
 
 /**
  * The persistent rail (FB-124).
@@ -98,6 +99,9 @@ export function Rail({
           once, below, from the run reports. Answering it twice from two sources is exactly what
           FB-139's own constraint forbids: same events, so they cannot disagree. */}
 
+      {/* FB-295: not for a venture the factory builds. These are the old machine's budgets; the
+          factory's money is set per piece of work, on the planning box. */}
+      {builtByFactory(ventureId) ? null : (
       <div style={{ marginTop: '1.6rem' }}>
         <div className="eyebrow">Budgets, month</div>
         {/* A department with no envelope renders "not set", never a blank line and never "£0".
@@ -140,6 +144,7 @@ export function Rail({
           })}
         </ul>
       </div>
+      )}
 
       <div style={{ marginTop: '1.6rem', fontSize: 'var(--fs-meta)' }}>
         {/* FB-203, item 12: a square, in the state's own colour, so a founder can see at a glance

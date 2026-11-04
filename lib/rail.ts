@@ -11,6 +11,7 @@ import { needsYouCount } from './needs-you';
 import { studioNow } from './when';
 import { ventureCards } from './factory-work-load';
 import { cardRows, cardsWaiting, withoutCarded } from './factory-work';
+import { builtByFactory, factoryLine } from './factory-built';
 
 /**
  * What the rail needs, loaded once per request (FB-124).
@@ -87,6 +88,7 @@ export const loadRailData = cache(async (venture: VentureSummary, nowMs: number 
  */
 async function railData(venture: VentureSummary, nowMs: number, isJohn: boolean): Promise<RailData> {
   let degraded = false;
+  const factory = builtByFactory(venture.id);
   const fell = <T,>(fallback: T) => (): T => {
     degraded = true;
     return fallback;
@@ -105,8 +107,12 @@ async function railData(venture: VentureSummary, nowMs: number, isJohn: boolean)
     // history — whether the machine is alive — and reading the reports themselves to find it made
     // every screen under a venture wait about six seconds, including a handbook page whose own
     // content arrives in 279ms.
-    timed('rail: is your team alive', () => ventureLiveness(venture), venture.id)
-      .catch(fell<Awaited<ReturnType<typeof ventureLiveness>> | null>(null)),
+    // FB-295: never for a venture the factory builds. Its old machine has stopped, and reading it
+    // only ever says so.
+    factory
+      ? Promise.resolve(null)
+      : timed('rail: is your team alive', () => ventureLiveness(venture), venture.id)
+        .catch(fell<Awaited<ReturnType<typeof ventureLiveness>> | null>(null)),
     // FB-277: the factory's cards. Shared with the page, once per request.
     timed('rail: the factory\'s cards', () => ventureCards(venture.id), venture.id),
   ]);
@@ -133,7 +139,9 @@ async function railData(venture: VentureSummary, nowMs: number, isJohn: boolean)
 
   // Both lists (FB-139) — see the note on `engineState`. The rail and the desk must not disagree
   // about whether the machine is alive, so they read the same thing the same way.
-  const engine = engineStateAt(runs?.at ?? null, new Date(nowMs));
+  const engine = factory
+    ? factoryLine(venture.name, rows, cards.quiet, nowMs)
+    : engineStateAt(runs?.at ?? null, new Date(nowMs));
   // A listing the studio could not read is not a machine that has stopped.
   if (runs?.degraded) degraded = true;
 
