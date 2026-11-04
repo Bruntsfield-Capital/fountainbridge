@@ -15,6 +15,7 @@ import { boardState, type VentureWiring } from '@/lib/firstrun';
 import { FirstRun, BoardUnreadable } from '@/components/FirstRun';
 import { departmentBudgets, type BudgetDisclosure } from '@/lib/budgets';
 import { ageRuns, engineState, type RunReport } from '@/lib/runreports';
+import { MOVING_CARD } from '@/lib/tickets-view';
 import { ageMs, stampAgeMs } from '@/lib/when';
 import { buildOffice } from '@/lib/office';
 import { lastSend } from '@/lib/sends';
@@ -391,7 +392,13 @@ async function Desk({
   // Work the engine is actually on, not work that has been filed. A ticket sitting in `todo` is not
   // a team "on" anything, and saying so would be the most flattering possible reading of an idle
   // venture.
-  const movingTickets = lanes.reduce((n, l) => n + l.groups['in-progress'].length, 0);
+  //
+  // FB-296: from evidence, as the Tickets screen's "Being built" is: a run of the venture's own
+  // machine that is going, or a factory card that is moving. It counted the "In progress" column,
+  // which is whatever the ticket files say, and ARCA's said it about work nobody had touched.
+  const movingTickets =
+    new Set(runs.reports.filter((r) => r.outcome === null).flatMap((r) => r.ticketsTouched)).size +
+    cardRows.filter((c) => !c.waits && MOVING_CARD.has(c.standing)).length;
   // One figure only when there IS one. `lib/budgets.ts` deliberately refuses to add up spend across
   // currencies per department, and summing them here would undo that: a venture with a GBP Build
   // envelope and a USD Sell envelope would get their arithmetic total, formatted in GBP — a number

@@ -72,4 +72,6 @@ export interface ParseContext {
 export interface ParseResult {
   ticket: Ticket;
   warnings: ParseWarning[];
+  /** The status said the work was stopped (FB-296). `ticket.status` is then `done`. */
+  stopped?: true;
 }

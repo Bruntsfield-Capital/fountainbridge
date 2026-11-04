@@ -169,7 +169,7 @@ export function resolveSelected(rows: TicketRow[], shown: TicketRow[], t: string
  */
 export const rowKey = (r: Pick<TicketRow, 'repo' | 'id'>): string => `${r.repo}/${r.id}`;
 
-export const TICKET_FILTERS = ['needs', 'all', 'underway', 'settled'] as const;
+export const TICKET_FILTERS = ['needs', 'all', 'underway', 'todo', 'settled'] as const;
 export type TicketFilter = (typeof TICKET_FILTERS)[number];
 
 /**
@@ -204,7 +204,8 @@ export function parseFilter(raw: unknown): TicketFilter {
 export const FILTER_LABEL: Record<TicketFilter, string> = {
   needs: 'Needs you',
   all: 'All',
-  underway: 'Underway',
+  underway: 'Being built',
+  todo: 'Not started',
   settled: 'Done and stopped',
 };
 
@@ -227,15 +228,56 @@ export const needsFounder = (r: TicketRow): boolean => r.waiting !== null || Boo
  * pull requests at all), it waits on nobody and is not done. Under a list of columns it appeared in
  * no filter but "All", and `needs + underway + settled` quietly stopped adding up to the total.
  */
-export const isUnderway = (r: TicketRow): boolean => !needsFounder(r) && r.group !== 'done';
+export const isUnderway = (r: TicketRow): boolean => rowStatus(r) === 'building';
 
 /** Finished, one way or another. */
 export const isSettled = (r: TicketRow): boolean => !needsFounder(r) && r.group === 'done';
+
+/** Not waiting, not settled, and nothing is being done to it: the rest, so the filters add up. */
+export const isNotStarted = (r: TicketRow): boolean => !needsFounder(r) && !isSettled(r) && !isUnderway(r);
+
+/**
+ * Where one ticket stands, in one word a founder reads on its row (FB-296).
+ *
+ * From evidence only, as the progress line is: a pull request or card waiting on this viewer, a
+ * factory card's own state, a run of the venture's own machine that is going, or the ticket file's
+ * status for what is finished or stopped. "In progress" written in a ticket file is not evidence,
+ * so a ticket nobody is working on reads "Not started" whatever its file says.
+ */
+export type RowStatus = 'waiting' | 'with-john' | 'building' | 'stuck' | 'done' | 'stopped' | 'not-started';
+
+export const ROW_STATUS_LABEL: Record<RowStatus, string> = {
+  waiting: 'Waiting for you',
+  'with-john': 'Waiting for John',
+  building: 'Being built',
+  stuck: 'Stuck',
+  done: 'Done',
+  stopped: 'Stopped',
+  'not-started': 'Not started',
+};
+
+/** A factory card's states that mean the work is moving and nobody needs to act on it. */
+export const MOVING_CARD: ReadonlySet<string> = new Set(['approved', 'trying-again', 'sent-back']);
+
+export function rowStatus(r: TicketRow): RowStatus {
+  if (needsFounder(r)) return 'waiting';
+  if (r.card) {
+    if (r.card.standing === 'done') return 'done';
+    if (r.card.standing === 'signed-off' || r.card.standing === 'needs-you') return 'with-john';
+    if (MOVING_CARD.has(r.card.standing)) return 'building';
+    if (r.card.standing === 'stuck' || r.card.standing === 'failed') return 'stuck';
+  }
+  if (r.group === 'done') return r.item?.stopped ? 'stopped' : 'done';
+  if (r.progress?.state === 'working') return 'building';
+  if (r.progress?.state === 'parked') return 'stuck';
+  return 'not-started';
+}
 
 export function filterTickets(rows: TicketRow[], filter: TicketFilter): TicketRow[] {
   switch (filter) {
     case 'needs': return rows.filter(needsFounder);
     case 'underway': return rows.filter(isUnderway);
+    case 'todo': return rows.filter(isNotStarted);
     case 'settled': return rows.filter(isSettled);
     case 'all': return rows;
   }
@@ -245,6 +287,7 @@ export interface TicketCounts {
   total: number;
   needs: number;
   underway: number;
+  todo: number;
   settled: number;
 }
 
@@ -259,6 +302,7 @@ export const countTickets = (rows: TicketRow[]): TicketCounts => ({
   // A factory card waiting on the founder is one item (FB-277), and the rail counts it the same way.
   needs: rows.reduce((n, r) => n + (r.waiting ? 1 + (r.waiting.also ?? 0) : r.send ? 1 : r.card?.waits ? 1 : 0), 0),
   underway: rows.filter(isUnderway).length,
+  todo: rows.filter(isNotStarted).length,
   settled: rows.filter(isSettled).length,
 });
 
@@ -288,8 +332,10 @@ export function ticketsSummary(c: TicketCounts, surfaceName?: string | null): st
 
   const parts: string[] = [];
   if (c.needs > 0) parts.push(`${c.needs} waiting on you`);
-  if (c.underway > 0) parts.push(`${c.underway} moving`);
-  if (c.settled > 0) parts.push(`${c.settled} settled`);
+  // FB-296: the same words as the filters, so the sentence and the tabs say one thing.
+  if (c.underway > 0) parts.push(`${c.underway} being built`);
+  if (c.todo > 0) parts.push(`${c.todo} not started`);
+  if (c.settled > 0) parts.push(`${c.settled} done or stopped`);
 
   const breakdown = parts.length
     ? `: ${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]}`

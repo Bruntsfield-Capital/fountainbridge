@@ -3,6 +3,7 @@ import {
   FILTER_LABEL, countTickets, decisionOrder, decisionPosition, filterTickets, nextDecision,
   DEFAULT_FILTER, onSurface, parseFilter, provenFact, resolveSurface, rowKey, ticketsSummary,
   type TicketRow,
+  ROW_STATUS_LABEL, rowStatus, isSettled,
 } from '../tickets-view';
 import type { TicketStatusGroup } from '../tickets';
 
@@ -44,8 +45,14 @@ describe('which tickets a filter contains', () => {
     expect(filterTickets(rows, 'needs').map((r) => r.id)).toEqual(['A']);
   });
 
-  it('“Underway” is work in flight and nothing waiting on the founder', () => {
-    expect(filterTickets(rows, 'underway').map((r) => r.id)).toEqual(['B', 'C', 'E']);
+  it('“Being built” is only work with evidence behind it, never a ticket file saying “In progress” (FB-296)', () => {
+    expect(filterTickets(rows, 'underway').map((r) => r.id)).toEqual([]);
+    const moving = row({ id: 'F', group: 'in-progress', progress: { state: 'working', text: 'Your team picked this up 5 minutes ago.', tone: 'working' } });
+    expect(filterTickets([...rows, moving], 'underway').map((r) => r.id)).toEqual(['F']);
+  });
+
+  it('“Not started” is everything else that is not waiting and not finished (FB-296)', () => {
+    expect(filterTickets(rows, 'todo').map((r) => r.id)).toEqual(['B', 'C', 'E']);
   });
 
   it('“Done and stopped” is what is finished', () => {
@@ -69,9 +76,9 @@ describe('which tickets a filter contains', () => {
     // repository was rate-limited and returned none. Under a list of columns it appeared in no
     // filter but "All", and the three counts stopped adding up to the total.
     const orphaned = [row({ id: 'REVIEW', group: 'pr-open' })];
-    expect(filterTickets(orphaned, 'underway').map((r) => r.id)).toEqual(['REVIEW']);
+    expect(filterTickets(orphaned, 'todo').map((r) => r.id)).toEqual(['REVIEW']);
     const c = countTickets(orphaned);
-    expect(c.needs + c.underway + c.settled).toBe(c.total);
+    expect(c.needs + c.underway + c.todo + c.settled).toBe(c.total);
   });
 
   it('a ticket waiting on the founder is never also counted as underway', () => {
@@ -79,7 +86,7 @@ describe('which tickets a filter contains', () => {
     // (`needs` counts waiting ITEMS, so this holds only while no ticket carries two — which is what
     // the test above is for.)
     const c = countTickets(rows);
-    expect(c.needs + c.underway + c.settled).toBe(c.total);
+    expect(c.needs + c.underway + c.todo + c.settled).toBe(c.total);
   });
 
   it('counts work that has no ticket file, because it still waits on the founder', () => {
@@ -123,17 +130,18 @@ describe('what the list says about itself', () => {
   it('reads as the design writes it', () => {
     const rows = [
       ...[1, 2, 3].map(() => row({ group: 'pr-open', waiting: waiting(1) })),
-      ...[1, 2].map(() => row({ group: 'in-progress' })),
+      ...[1, 2].map(() => row({ group: 'in-progress', progress: { state: 'working', text: 'Your team is on this.', tone: 'working' } })),
+      row({ group: 'todo' }),
       ...[1, 2, 3, 4].map(() => row({ group: 'done' })),
     ];
     expect(ticketsSummary(countTickets(rows))).toBe(
-      '9 tickets: 3 waiting on you, 2 moving and 4 settled. Every one can be followed to where it changed things.',
+      '10 tickets: 3 waiting on you, 2 being built, 1 not started and 4 done or stopped. Every one can be followed to where it changed things.',
     );
   });
 
   it('drops the clauses that are not true rather than reporting zeroes', () => {
     expect(ticketsSummary(countTickets([row({ group: 'done' })])))
-      .toBe('1 ticket: 1 settled. Every one can be followed to where it changed things.');
+      .toBe('1 ticket: 1 done or stopped. Every one can be followed to where it changed things.');
   });
 
   it('says something useful when there is nothing at all', () => {
@@ -281,5 +289,37 @@ describe('the rows of one surface', () => {
     const rows = [row('arca', 'A-1')];
     onSurface(rows, 'arca-marketing');
     expect(rows).toHaveLength(1);
+  });
+});
+
+describe('the status word on each row (FB-296)', () => {
+  const working = { state: 'working' as const, text: 'Your team picked this up 5 minutes ago.', tone: 'working' as const };
+  const card = (standing: string, waits = false) => ({ waits, standing, words: standing, sentence: '', ageMs: 0 }) as unknown as TicketRow['card'];
+  const stoppedItem = { ticket: { id: 'S', title: 'S' }, warnings: [], stopped: true } as unknown as TicketRow['item'];
+
+  it('says “Waiting for you” for anything waiting on the founder', () => {
+    expect(ROW_STATUS_LABEL[rowStatus(row({ group: 'pr-open', waiting: waiting(1) }))]).toBe('Waiting for you');
+  });
+
+  it('says “Not started” for a ticket file saying “In progress” with nothing behind it', () => {
+    expect(ROW_STATUS_LABEL[rowStatus(row({ group: 'in-progress' }))]).toBe('Not started');
+  });
+
+  it('says “Being built” only from a run that is going, or a factory card that is moving', () => {
+    expect(rowStatus(row({ group: 'in-progress', progress: working }))).toBe('building');
+    expect(rowStatus({ ...row({ group: 'todo' }), card: card('sent-back') })).toBe('building');
+    expect(rowStatus({ ...row({ group: 'todo' }), card: card('approved') })).toBe('building');
+  });
+
+  it('tells “Done” and “Stopped” apart, though both are settled', () => {
+    expect(ROW_STATUS_LABEL[rowStatus(row({ group: 'done' }))]).toBe('Done');
+    const s = { ...row({ id: 'S', group: 'done' }), item: stoppedItem };
+    expect(ROW_STATUS_LABEL[rowStatus(s)]).toBe('Stopped');
+    expect(isSettled(s)).toBe(true);
+  });
+
+  it('says a signed-off factory card waits for John, and a stuck one is stuck', () => {
+    expect(ROW_STATUS_LABEL[rowStatus({ ...row(), card: card('signed-off') })]).toBe('Waiting for John');
+    expect(ROW_STATUS_LABEL[rowStatus({ ...row(), card: card('stuck') })]).toBe('Stuck');
   });
 });

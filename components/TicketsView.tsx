@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { STATUS_LABEL } from '@/lib/glossary';
 import { showAngleBrackets, splitTicketBody, withoutStatusClaim, withoutTitleHeading } from '@/lib/markdown';
 import { toneColor } from '@/lib/status';
 import { FactoryQuiet } from './FactoryQuiet';
@@ -17,6 +16,8 @@ import {
   DEFAULT_FILTER, FILTER_LABEL, TICKET_FILTERS, countTickets, decisionOrder, decisionPosition,
   filterTickets, nextDecision, provenFact, resolveSelected, rowKey, ticketsSummary, type TicketFilter,
   type TicketRow,
+  ROW_STATUS_LABEL,
+  rowStatus,
 } from '@/lib/tickets-view';
 import { Mark } from './Mark';
 import { Decision, decisionOutcome, type DecisionResult } from './Decision';
@@ -177,7 +178,7 @@ export function TicketsView({
           founder's product. `role="tab"` is unchanged; what they look like is the change. */}
       <div role="tablist" aria-label="Filter tickets" className="tabs">
         {TICKET_FILTERS.map((f) => {
-          const n = f === 'needs' ? counts.needs : f === 'underway' ? counts.underway : f === 'settled' ? counts.settled : counts.total;
+          const n = f === 'needs' ? counts.needs : f === 'underway' ? counts.underway : f === 'todo' ? counts.todo : f === 'settled' ? counts.settled : counts.total;
           return (
             <button
               key={f}
@@ -262,6 +263,11 @@ export function TicketsView({
                     <span className="mono" data-testid={`tickets-id-${r.id}`}>
                       {r.send ? (r.send.ref ? `send · ${r.send.ref}` : 'send') : isUnnumbered(r.id) ? 'unnumbered' : r.id}
                     </span>
+                    {/* FB-296: where it stands, in one word, on every row. A send and a factory card
+                        say it in their own words just after, so they get no second one. */}
+                    {r.send || r.card ? null : (
+                      <> · <span data-testid={`tickets-status-${r.id}`} data-status={rowStatus(r)}>{ROW_STATUS_LABEL[rowStatus(r)]}</span></>
+                    )}
                     {r.surface ? <> · {r.surface}</> : null}
                     {/* FB-149: a send says it is one, on the row. It is something leaving the company,
                         not work to read, and a founder must tell the two apart before opening it. */}
@@ -368,7 +374,7 @@ function Detail({
         <span className="mono eyebrow-id" data-testid="detail-id">
           {row.send ? (row.send.ref ? `send · ${row.send.ref}` : 'send') : isUnnumbered(row.id) ? 'unnumbered' : row.id}
         </span>
-        {row.surface ? <> · {row.surface}</> : null} · {row.send ? 'something leaving your company' : row.card ? row.card.words : STATUS_LABEL[row.group]}
+        {row.surface ? <> · {row.surface}</> : null} · {row.send ? 'something leaving your company' : row.card ? row.card.words : ROW_STATUS_LABEL[rowStatus(row)]}
         {/* FB-098's "is anything happening to the thing I asked for", moved here from the row by
             FB-208. On the row it was one clause of five on a line that wrapped to three; here it is
             beside the status it qualifies, on the screen a founder opened to find out. */}
