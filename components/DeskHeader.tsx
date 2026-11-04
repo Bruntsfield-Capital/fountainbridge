@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { toneColor } from '@/lib/status';
-import type { DegradedGroup } from '@/lib/desk';
+import { degradedNextStep, type DegradedGroup } from '@/lib/desk';
 
 /**
  * The top of the desk (FB-128): the sentence, then the banner, then what could not be read.
@@ -78,9 +78,10 @@ export function BlockerBanner({ line, href }: { line: string | null; href: strin
 /**
  * What could not be read, grouped by cause.
  *
- * Named as a condition that clears rather than as a failure the founder must chase — because it is
- * one, and because the alternative teaches them to treat every amber thing on this page as noise.
- * Nothing here is swallowed (CLAUDE.md #10); it is placed, which is different.
+ * Named as a condition that clears rather than as a failure the founder must chase — when it is
+ * one. Since FB-297 a cause that never clears by itself (a repository the studio isn't allowed to
+ * read) says so, and who has to act, instead of "it clears on its own". Nothing here is swallowed
+ * (CLAUDE.md #10); it is placed, which is different.
  */
 export function DegradedStrip({ groups, ventureId }: { groups: DegradedGroup[]; ventureId: string }) {
   if (groups.length === 0) return null;
@@ -90,7 +91,7 @@ export function DegradedStrip({ groups, ventureId }: { groups: DegradedGroup[]; 
       data-testid="degraded-strip"
       style={{ fontSize: 'var(--fs-body-sm)', margin: '1.5rem 0', maxWidth: 'var(--content-narrow)' }}
     >
-      <p className="eyebrow" style={{ marginTop: 0 }}>One workstream is catching up</p>
+      <p className="eyebrow" style={{ marginTop: 0 }}>Part of this venture could not be read</p>
       <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
         {groups.map((g) => (
           <li key={g.cause} data-testid="degraded-group" className="muted" style={{ margin: '0 0 0.3rem' }}>
@@ -100,7 +101,7 @@ export function DegradedStrip({ groups, ventureId }: { groups: DegradedGroup[]; 
         ))}
       </ul>
       <p className="muted" style={{ fontSize: 'var(--fs-meta-lg)', margin: '0.5rem 0 0' }}>
-        Nothing for you to do; it clears on its own.{' '}
+        {degradedNextStep(groups)}{' '}
         <Link href={`/venture/${ventureId}?refresh=1`} className="mono" data-testid="degraded-refresh">refresh</Link>
       </p>
     </section>

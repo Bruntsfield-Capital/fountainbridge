@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { degradedNextStep, type DegradedGroup } from '@/lib/desk';
 import { welcome, firstName, type VentureWiring } from '@/lib/firstrun';
 import { toneColor } from '@/lib/status';
 import { Mark } from './Mark';
@@ -78,11 +79,12 @@ export function FirstRun({
 export function BoardUnreadable({
   ventureId,
   ventureName,
-  reasons,
+  groups,
 }: {
   ventureId: string;
   ventureName: string;
-  reasons: string[];
+  /** What could not be read, grouped by cause (`degradedGroups`, FB-297). */
+  groups: DegradedGroup[];
 }) {
   return (
     <section data-testid="board-unreadable">
@@ -96,15 +98,20 @@ export function BoardUnreadable({
         The studio could not read this venture, so this page is empty — that is not the same as
         nothing having happened. Until it can, treat this page as unknown rather than as quiet.
       </p>
+      {/* FB-297: grouped by cause, each naming the repositories it hit, as the desk's strip does.
+          The raw list said the same fault up to three times per repository. */}
       <ul style={{ fontSize: 'var(--fs-body-sm)', maxWidth: 'var(--content-narrow)' }}>
-        {reasons.map((r, i) => (
-          <li key={i} data-testid="board-unreadable-reason">{r}</li>
+        {groups.map((g) => (
+          <li key={g.cause} data-testid="board-unreadable-reason">
+            {g.cause}
+            {g.where.length ? <> <span className="mono">({g.where.join(', ')})</span></> : null}
+          </li>
         ))}
       </ul>
       <p className="muted" style={{ fontSize: 'var(--fs-body-sm)', maxWidth: 'var(--content-narrow)' }}>
-        This is usually the studio&rsquo;s access to GitHub rather than anything wrong with your
-        venture. If it does not clear on its own,{' '}
-        <Link href={`/venture/${ventureId}?refresh=1`}>refresh</Link> — and tell us if it persists.
+        This is usually the studio&rsquo;s access to GitHub, not anything wrong with your venture.{' '}
+        {degradedNextStep(groups)}{' '}
+        <Link href={`/venture/${ventureId}?refresh=1`}>refresh</Link>
       </p>
     </section>
   );

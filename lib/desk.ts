@@ -185,6 +185,12 @@ export interface DegradedGroup {
   cause: string;
   /** Which parts of the venture it affected. Empty when nothing named one. */
   where: string[];
+  /**
+   * Whether it clears without anyone doing anything (FB-297). A busy GitHub does; a repository the
+   * studio isn't allowed to read never does, and saying "it clears on its own" about that one
+   * meant it stayed broken for weeks with the studio calling it nothing.
+   */
+  clears: boolean;
 }
 
 /**
@@ -201,24 +207,54 @@ export interface DegradedGroup {
  * hyphenated word.
  */
 export function degradedGroups(failures: ReadFailure[]): DegradedGroup[] {
-  const groups = new Map<string, string[]>();
+  const groups = new Map<string, { where: string[]; clears: boolean }>();
   for (const f of failures) {
-    const message = f.message?.trim();
+    let message = f.message?.trim();
+    let where = f.where;
     if (!message) continue;
-    const cause = causeOf(message);
-    const where = groups.get(cause) ?? [];
-    if (f.where && !where.includes(f.where)) where.push(f.where);
-    groups.set(cause, where);
+    // FB-297: the open-work read says "arca: The studio could not read arca just now." about the
+    // same fault the tickets read reported as "The studio could not read arca just now." Taken
+    // apart, the two are one line, not two.
+    const named = where ? null : message.match(/^([a-z0-9][a-z0-9._-]*): (.+)$/);
+    if (named) [where, message] = [named[1], named[2]];
+    const { cause, clears } = causeOf(message);
+    const group = groups.get(cause) ?? { where: [], clears };
+    if (where && !group.where.includes(where)) group.where.push(where);
+    groups.set(cause, group);
   }
-  return [...groups.entries()].map(([cause, where]) => ({ cause, where }));
+  return [...groups.entries()].map(([cause, g]) => ({ cause, where: g.where, clears: g.clears }));
 }
 
-/** The few causes worth telling apart. Anything else is reported in the studio's own words. */
-function causeOf(text: string): string {
-  if (/rate.?limit/i.test(text)) return 'GitHub is rate-limiting reads; this desk fills in as reads succeed.';
-  if (/not found|404|does not exist/i.test(text)) return 'Something this venture points at is not there yet.';
-  if (/permission|forbidden|403|not allowed/i.test(text)) return 'The studio is not allowed to read part of this venture.';
-  return text;
+/**
+ * The few causes worth telling apart, in plain words, and whether each clears by itself (FB-297).
+ * Anything else is reported in the studio's own words, as something that clears.
+ *
+ * GitHub answers "not found" both for a repository that isn't there and for a private one the
+ * studio's key isn't allowed to see, so that sentence says both. On staging, ARCA's two private
+ * repositories came back "not found" while its public one read fine.
+ */
+function causeOf(text: string): { cause: string; clears: boolean } {
+  // The loaders' own catch-all, which names one repository per sentence: one line for all of them.
+  if (/^The studio could not read \S+ just now\.?$/.test(text)) {
+    return { cause: 'The studio could not read these just now.', clears: true };
+  }
+  if (/rate.?limit/i.test(text)) {
+    return { cause: 'GitHub is limiting how much the studio can read just now. This fills in as reads succeed.', clears: true };
+  }
+  if (/not found|404|does not exist/i.test(text)) {
+    return { cause: 'GitHub says this isn’t there, or the studio isn’t allowed to see it.', clears: false };
+  }
+  if (/permission|forbidden|403|not allowed/i.test(text)) {
+    return { cause: 'The studio isn’t allowed to read this.', clears: false };
+  }
+  return { cause: text, clears: true };
+}
+
+/** What to do about the groups, in one sentence: nothing, or who has to act. */
+export function degradedNextStep(groups: DegradedGroup[]): string {
+  return groups.every((g) => g.clears)
+    ? 'Nothing for you to do; it clears on its own.'
+    : 'This won’t clear on its own: someone has to give the studio access to it.';
 }
 
 

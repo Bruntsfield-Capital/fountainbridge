@@ -464,7 +464,7 @@ async function Desk({
     );
   }
   if (state.kind === 'unreadable') {
-    return <BoardUnreadable ventureId={venture.id} ventureName={venture.name} reasons={state.reasons} />;
+    return <BoardUnreadable ventureId={venture.id} ventureName={venture.name} groups={degraded} />;
   }
 
   return (

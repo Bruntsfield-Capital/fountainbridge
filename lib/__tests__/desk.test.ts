@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  blockerLine, degradedGroups, deskQueue, deskSummary, surfaceOutcome, waitingOnFounder, type DeskFacts,
+  blockerLine, degradedGroups, degradedNextStep, deskQueue, deskSummary, surfaceOutcome, waitingOnFounder, type DeskFacts,
 } from '../desk';
 
 /**
@@ -184,6 +184,41 @@ describe('the degraded strip', () => {
   it('is empty when nothing failed', () => {
     expect(degradedGroups([])).toEqual([]);
     expect(degradedGroups([{ where: 'arca', message: '   ' }])).toEqual([]);
+  });
+
+  it('says one fault once, when two reads report it in different words (FB-297)', () => {
+    const groups = degradedGroups([
+      { where: 'arca', message: 'The studio could not read arca just now.' },
+      { where: 'arca-ops', message: 'The studio could not read arca-ops just now.' },
+      { where: null, message: 'arca: The studio could not read arca just now.' },
+      { where: null, message: 'arca-ops: The studio could not read arca-ops just now.' },
+    ]);
+    expect(groups).toEqual([{ cause: 'The studio could not read these just now.', where: ['arca', 'arca-ops'], clears: true }]);
+  });
+
+  it('says a busy GitHub clears on its own (FB-297)', () => {
+    const groups = degradedGroups([{ where: 'arca', message: 'GitHub rate limit hit — try refresh shortly.' }]);
+    expect(groups[0]).toEqual({
+      cause: 'GitHub is limiting how much the studio can read just now. This fills in as reads succeed.',
+      where: ['arca'],
+      clears: true,
+    });
+    expect(degradedNextStep(groups)).toBe('Nothing for you to do; it clears on its own.');
+  });
+
+  it('says a repository GitHub calls "not found" may be one the studio isn’t allowed to see, and that it won’t clear (FB-297)', () => {
+    // GitHub answers "not found" for a private repository the key can't see. On staging, ARCA's two
+    // private repositories did exactly that while the public one read fine.
+    const groups = degradedGroups([
+      { where: 'arca', message: 'Not Found' },
+      { where: 'arca-marketing', message: '404 Not Found' },
+      { where: 'arca-ops', message: 'GitHub rate limit hit — try refresh shortly.' },
+    ]);
+    expect(groups.map((g) => [g.cause, g.where, g.clears])).toEqual([
+      ['GitHub says this isn’t there, or the studio isn’t allowed to see it.', ['arca', 'arca-marketing'], false],
+      ['GitHub is limiting how much the studio can read just now. This fills in as reads succeed.', ['arca-ops'], true],
+    ]);
+    expect(degradedNextStep(groups)).toBe('This won’t clear on its own: someone has to give the studio access to it.');
   });
 });
 
