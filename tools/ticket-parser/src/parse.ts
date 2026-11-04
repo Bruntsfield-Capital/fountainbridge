@@ -61,6 +61,18 @@ function stripInline(value: string): string {
   return value.replace(/[*`]/g, '').trim();
 }
 
+/**
+ * Work nobody will do (FB-296). The contract has no state for it, so it maps to `done` (it is settled,
+ * not waiting), and the result says `stopped` so a screen can call it "Stopped", not "Done".
+ */
+const STOPPED = /\b(stopped|cancell?ed|dropped|abandoned|won'?t[\s-]?do|wontfix|superseded|retired|not[\s-]?wanted)\b/;
+
+/** Whether a free-text status says the work was stopped rather than finished. */
+export function isStoppedStatus(raw: string): boolean {
+  const lead = stripInline(raw).split(/[—–(;]/)[0].toLowerCase().trim();
+  return STOPPED.test(lead);
+}
+
 /** Map a free-text status to the contract enum. Returns null if nothing recognizable is found. */
 export function mapStatus(raw: string): TicketStatus | null {
   const lead = stripInline(raw)
@@ -223,7 +235,10 @@ export function parseTicket(markdown: string, ctx: ParseContext): ParseResult {
 
   // --- status: absence is normal (default todo); presence-but-unmappable is worth flagging -----
   let status: TicketStatus = 'todo';
-  if (statusRaw !== null && statusRaw.trim() !== '') {
+  const stopped = statusRaw !== null && isStoppedStatus(statusRaw);
+  if (stopped) {
+    status = 'done';
+  } else if (statusRaw !== null && statusRaw.trim() !== '') {
     const mapped = mapStatus(statusRaw);
     if (mapped) {
       status = mapped;
@@ -248,7 +263,7 @@ export function parseTicket(markdown: string, ctx: ParseContext): ParseResult {
     body_md: src,
   };
 
-  return { ticket, warnings };
+  return stopped ? { ticket, warnings, stopped: true } : { ticket, warnings };
 }
 
 /**

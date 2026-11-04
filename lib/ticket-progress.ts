@@ -100,8 +100,10 @@ export function ticketProgress(input: {
   }
 
   // 3. Working. Only from a run that is genuinely in flight, or from the column plus a run that
-  //    started. "In progress" in the markdown with no run behind it is not evidence of anything.
-  if (group === 'in-progress' || latest?.outcome === null) {
+  //    started. "In progress" in the markdown with no run behind it is not evidence of anything,
+  //    and since FB-296 it no longer counts as working: it said "Your team is on this" about ARCA
+  //    tickets nobody had touched in months.
+  if (latest?.outcome === null || (group === 'in-progress' && latest !== null)) {
     const started = minutesSince(latest?.startedAt ?? null, now);
     const since = started === null ? null : `Your team picked this up ${gap(started)}`;
     // The team's real check-in, which is the whole honest answer to "is anything happening?".

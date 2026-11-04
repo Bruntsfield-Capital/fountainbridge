@@ -45,6 +45,8 @@ export type LaneErrorKind = 'no-credentials' | 'unreadable' | 'rate-limit' | 'er
 export interface TicketWithMeta {
   ticket: Ticket;
   warnings: ParseWarning[];
+  /** Its status says the work was stopped, not finished (FB-296). It is grouped `done`. */
+  stopped?: true;
 }
 
 export interface LaneTickets {
@@ -97,7 +99,9 @@ export function groupRepoTickets(repo: string, fetched: RepoTicketFiles): LaneTi
       skipped += 1;
       continue;
     }
-    groups[result.ticket.status].push({ ticket: result.ticket, warnings: result.warnings });
+    groups[result.ticket.status].push(result.stopped
+      ? { ticket: result.ticket, warnings: result.warnings, stopped: true }
+      : { ticket: result.ticket, warnings: result.warnings });
     total += 1;
   }
   for (const g of STATUS_GROUPS) {

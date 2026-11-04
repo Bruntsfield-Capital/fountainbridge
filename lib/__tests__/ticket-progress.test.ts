@@ -78,8 +78,12 @@ describe('what a ticket card can honestly say', () => {
   });
 
   it('ignores runs about other tickets', () => {
-    expect(ask({ runs: [run({ ticketsTouched: ['ARCA-99'], outcome: 'blocked' })], group: 'in-progress' })!.state)
-      .toBe('working');
+    // FB-296: and with none of its own, "In progress" in the file is not evidence of work.
+    expect(ask({ runs: [run({ ticketsTouched: ['ARCA-99'], outcome: 'blocked' })], group: 'in-progress' })).toBeNull();
+  });
+
+  it('a ticket file saying "In progress" with no run behind it is not working (FB-296)', () => {
+    expect(ask({ runs: [], group: 'in-progress' })).toBeNull();
   });
 
   it('puts being worked above having once stopped', () => {

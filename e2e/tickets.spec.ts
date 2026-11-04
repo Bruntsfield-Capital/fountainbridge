@@ -179,7 +179,7 @@ test.describe('one number for what is waiting (FB-099)', () => {
     // ticket opens under "Needs your OK" in its own eyebrow, with its progress beside it.
     await page.goto('/venture/arca/tickets?filter=all');
     await page.getByTestId('tickets-row-ARCA-3').click();
-    await expect(page.getByTestId('tickets-detail')).toContainText('Needs your OK');
+    await expect(page.getByTestId('tickets-detail')).toContainText('Waiting for you');
     await expect(page.getByTestId('ticket-progress-ARCA-3')).toHaveAttribute('data-state', 'worked');
   });
 

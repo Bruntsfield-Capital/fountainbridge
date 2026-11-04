@@ -95,7 +95,7 @@ test('open PR moves its ticket to "Needs your OK" (status inference)', async ({ 
   // and status is what the filter above the list already selects. The inference is read where it now
   // lives — the ticket's own eyebrow — which is the same claim in a place with room for it.
   await page.getByTestId('tickets-row-ARCA-1').click();
-  await expect(page.getByTestId('tickets-detail')).toContainText('Needs your OK');
+  await expect(page.getByTestId('tickets-detail')).toContainText('Waiting for you');
 });
 
 test('a founder sees only their own ventures in the queue', async ({ page }) => {

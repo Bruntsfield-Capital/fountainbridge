@@ -6,7 +6,7 @@
  * turns markdown content + caller context into a `Ticket` + warnings.
  */
 
-export { parseTicket, looksLikeTicket, mapStatus, parseDependsOn } from './parse';
+export { parseTicket, looksLikeTicket, mapStatus, parseDependsOn, isStoppedStatus } from './parse';
 export type {
   Ticket,
   TicketStatus,

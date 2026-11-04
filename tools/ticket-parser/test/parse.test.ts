@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseTicket, looksLikeTicket, mapStatus, parseDependsOn } from '../src/index';
+import { parseTicket, looksLikeTicket, mapStatus, parseDependsOn, isStoppedStatus } from '../src/index';
 
 const FIX = join(import.meta.dirname, '..', 'fixtures');
 const read = (rel: string) => readFileSync(join(FIX, rel), 'utf8');
@@ -171,4 +171,19 @@ test('a numbered ticket carries no unnumbered warning', () => {
   });
   assert.equal(r.ticket.id, 'ARCA-44');
   assert.ok(!r.warnings.some((w) => w.code === 'unnumbered-id'));
+});
+
+test('FB-296: a stopped ticket is settled, and says it was stopped rather than finished', () => {
+  const r = parseTicket('# ARCA-068 — Live auction listings\n\n**Status:** Stopped — from ARCA\'s old machine, not carried into the factory\n', { repo: 'arca', path: 'docs/tickets/ARCA-068.md' });
+  assert.equal(r.ticket.status, 'done');
+  assert.equal(r.stopped, true);
+  assert.deepEqual(r.warnings, []);
+  for (const s of ['Cancelled', 'Dropped', "Won't do", 'Superseded by ARCA-090']) assert.equal(isStoppedStatus(s), true, s);
+  for (const s of ['Done', 'Planned', 'In progress — stopped once, picked up again']) assert.equal(isStoppedStatus(s), false, s);
+});
+
+test('FB-296: a finished ticket carries no stopped mark', () => {
+  const r = parseTicket('# ARCA-087 — Clear the filters\n\n**Status:** Shipped\n', { repo: 'arca', path: 'docs/tickets/ARCA-087.md' });
+  assert.equal(r.ticket.status, 'done');
+  assert.equal(r.stopped, undefined);
 });

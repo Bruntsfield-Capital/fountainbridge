@@ -32,6 +32,7 @@ import { timed } from '@/lib/timing';
 import { CARDS_UNREAD, ventureCardRows, viewerOf } from '@/lib/factory-work-load';
 import { cardHref, metaLine, stuckNames, withoutCarded, type CardRow } from '@/lib/factory-work';
 import type { WaitingItem } from '@/components/WaitingQueue';
+import { MOVING_CARD } from '@/lib/tickets-view';
 
 // Venture lanes & tickets (FB-006). Scoping is enforced HERE, server-side: a session that can't
 // access this venture never triggers a ticket fetch (CLAUDE.md #6 — isolation is not UI-only).
@@ -391,7 +392,13 @@ async function Desk({
   // Work the engine is actually on, not work that has been filed. A ticket sitting in `todo` is not
   // a team "on" anything, and saying so would be the most flattering possible reading of an idle
   // venture.
-  const movingTickets = lanes.reduce((n, l) => n + l.groups['in-progress'].length, 0);
+  //
+  // FB-296: from evidence, as the Tickets screen's "Being built" is: a run of the venture's own
+  // machine that is going, or a factory card that is moving. It counted the "In progress" column,
+  // which is whatever the ticket files say, and ARCA's said it about work nobody had touched.
+  const movingTickets =
+    new Set(runs.reports.filter((r) => r.outcome === null).flatMap((r) => r.ticketsTouched)).size +
+    cardRows.filter((c) => !c.waits && MOVING_CARD.has(c.standing)).length;
   // One figure only when there IS one. `lib/budgets.ts` deliberately refuses to add up spend across
   // currencies per department, and summing them here would undo that: a venture with a GBP Build
   // envelope and a USD Sell envelope would get their arithmetic total, formatted in GBP — a number
